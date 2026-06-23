@@ -8,7 +8,7 @@ This is a learning project.
 - **C++17**, built with **CMake** + **Ninja**
 - **GLFW** (window/input), **GLEW** (GL loader), **GLM** (math)
 - **GLSL** shaders (a compute shader handles the heavy geodesic math)
-- Dependencies managed by **vcpkg** in manifest mode (per-project isolation)
+- Libraries installed via **MSYS2 pacman** (pre-built, MinGW-native)
 
 ## Project layout
 ```
@@ -24,7 +24,7 @@ tests/         math verification
 ## Build & run
 With the toolchain installed:
 ```sh
-cmake --preset mingw-debug      # configures + installs deps via vcpkg
+cmake --preset mingw-debug      # configures (finds GLFW/GLEW/GLM from MSYS2)
 cmake --build --preset mingw-debug
 ./build/mingw-debug/BlackHoleSim.exe
 ```

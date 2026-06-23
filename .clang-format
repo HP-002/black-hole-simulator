@@ -1,0 +1,7 @@
+# One consistent code style for the whole project.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 80
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: Inline
+SortIncludes: true
