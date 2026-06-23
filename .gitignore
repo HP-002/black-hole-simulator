@@ -1,0 +1,15 @@
+# Build output
+/build/
+
+# vcpkg's per-project installed libraries (our "virtual environment").
+# These are reproducible from vcpkg.json, so we don't commit them.
+/vcpkg_installed/
+
+# Editor / IntelliSense
+.cache/
+compile_commands.json
+
+# Binaries
+*.exe
+*.o
+*.obj
