@@ -26,10 +26,18 @@ find_package(OpenGL REQUIRED)
 # Add new .cpp files here as created (src/core, src/render, etc.)
 add_executable(BlackHoleSim
     src/main.cpp
+    src/core/Window.cpp
+    src/core/Shader.cpp
 )
 
 # Let code do  #include "core/Window.hpp"  from anywhere under src/.
 target_include_directories(BlackHoleSim PRIVATE src)
+
+# Absolute path to runtime assets (shaders, textures), baked in at compile time.
+# Lets the exe find its shaders from any working directory, and lets one edit a
+# shader and re-run without rebuilding (the path points at the source tree).
+target_compile_definitions(BlackHoleSim PRIVATE
+    BHS_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 
 target_link_libraries(BlackHoleSim PRIVATE
     glfw
