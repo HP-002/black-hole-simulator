@@ -1,58 +1,73 @@
 // Black Hole Simulator
 //
-// Tests GLFW opens a window, GLEW loads OpenGL, and everything links. Currently
-// only opens a dark blue window.
+// Entry point. Opens a window, loads the triangle shader, and runs the render
+// loop. Windowing and shader plumbing live in core/; main() just wires them up.
 
-#include <GL/glew.h> // OpenGL loader; must be included before GLFW
-#include <GLFW/glfw3.h>
+#include "core/Shader.hpp"
+#include "core/Window.hpp"
 
 #include <cstdio>
+#include <stdexcept>
 
 int main() {
-    if (!glfwInit()) {
-        std::fprintf(stderr, "Failed to initialize GLFW\n");
-        return 1;
-    }
+    try {
+        Window window(960, 540, "Black Hole Simulator");
 
-    // Ask for a modern OpenGL 4.3 core context (4.3 = compute shaders later).
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        // Triangle in Normalized Device Coordinates (NDC), at the screen
+        // center. Each vertex is position (x, y, z) followed by color (r, g,
+        // b).
+        float vertices[] = {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+                            0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,
+                            0.0f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f};
 
-    GLFWwindow* window =
-        glfwCreateWindow(960, 540, "Black Hole Simulator", nullptr, nullptr);
-    if (!window) {
-        std::fprintf(stderr, "Failed to create window\n");
-        glfwTerminate();
-        return 1;
-    }
-    glfwMakeContextCurrent(window);
+        GLuint vao, vbo;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
 
-    // Load OpenGL function pointers via GLEW.
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        std::fprintf(stderr, "Failed to initialize GLEW\n");
-        glfwTerminate();
-        return 1;
-    }
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+                     GL_STATIC_DRAW);
 
-    std::printf("OpenGL %s\n", glGetString(GL_VERSION));
-    std::printf("Renderer: %s\n", glGetString(GL_RENDERER));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                              (void*)0);
+        glEnableVertexAttribArray(0);
 
-    // Render loop: clear to a dark blue and present, until ESC or close.
-    while (!glfwWindowShouldClose(window)) {
-        glClearColor(0.02f, 0.02f, 0.06f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                              (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        glBindVertexArray(0);
 
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        // BHS_ASSET_DIR is the absolute path to assets/, baked in at compile
+        // time by CMake (see CMakeLists.txt) so the exe finds shaders from any
+        // cwd.
+        Shader shader(BHS_ASSET_DIR "/shaders/triangle.vert",
+                      BHS_ASSET_DIR "/shaders/triangle.frag");
+
+        // Render loop: clear to dark blue, draw the triangle, until ESC or
+        // close.
+        while (!window.shouldClose()) {
+            glClearColor(0.02f, 0.02f, 0.06f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            shader.use();
+            glBindVertexArray(vao);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+
+            window.swapBuffers();
+            window.pollEvents();
+
+            if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
+                window.requestClose();
+            }
         }
-    }
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(1, &vbo);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Fatal: %s\n", e.what());
+        return 1;
+    }
     return 0;
 }
