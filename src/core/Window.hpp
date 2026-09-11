@@ -19,6 +19,8 @@ class Window {
     void pollEvents();
     bool isKeyPressed(int key) const;
 
+    float aspectRatio() const;
+
     GLFWwindow* handle() const { return window_; }
 
   private:

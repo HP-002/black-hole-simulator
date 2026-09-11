@@ -63,3 +63,11 @@ void Window::pollEvents() {
 bool Window::isKeyPressed(int key) const {
     return glfwGetKey(window_, key) == GLFW_PRESS;
 }
+
+float Window::aspectRatio() const {
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window_, &width, &height);
+    // Check for division by zero
+    return height > 0 ? static_cast<float>(width) / height : 1.0f;
+}
