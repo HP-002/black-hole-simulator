@@ -1,58 +1,165 @@
 // Black Hole Simulator
-//
-// Tests GLFW opens a window, GLEW loads OpenGL, and everything links. Currently
-// only opens a dark blue window.
 
-#include <GL/glew.h> // OpenGL loader; must be included before GLFW
-#include <GLFW/glfw3.h>
+// Entry point
+
+#include "core/Camera.hpp"
+#include "core/Shader.hpp"
+#include "core/Window.hpp"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <cstdio>
+#include <stdexcept>
 
 int main() {
-    if (!glfwInit()) {
-        std::fprintf(stderr, "Failed to initialize GLFW\n");
-        return 1;
-    }
+    try {
+        Window window(960, 540, "Black Hole Simulator");
 
-    // Ask for a modern OpenGL 4.3 core context (4.3 = compute shaders later).
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        // Unit cube centered on the origin.
+        // 6 faces x 2 triangles x 3 vertices = 36 vertices
+        // clang-format off
+        float vertices[] = {
+            // back (z = -0.5), red
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+            -0.5f,  0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+             0.5f,  0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+             0.5f,  0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+             0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
+            // front (z = +0.5), green
+            -0.5f, -0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+             0.5f, -0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+             0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+             0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+            -0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+            -0.5f, -0.5f,  0.5f,  0.2f, 1.0f, 0.2f,
+            // left (x = -0.5), blue
+            -0.5f,  0.5f,  0.5f,  0.2f, 0.4f, 1.0f,
+            -0.5f,  0.5f, -0.5f,  0.2f, 0.4f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  0.2f, 0.4f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  0.2f, 0.4f, 1.0f,
+            -0.5f, -0.5f,  0.5f,  0.2f, 0.4f, 1.0f,
+            -0.5f,  0.5f,  0.5f,  0.2f, 0.4f, 1.0f,
+            // right (x = +0.5), yellow
+             0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.2f,
+             0.5f, -0.5f,  0.5f,  1.0f, 1.0f, 0.2f,
+             0.5f, -0.5f, -0.5f,  1.0f, 1.0f, 0.2f,
+             0.5f, -0.5f, -0.5f,  1.0f, 1.0f, 0.2f,
+             0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.2f,
+             0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.2f,
+            // bottom (y = -0.5), magenta
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 1.0f,
+             0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 1.0f,
+             0.5f, -0.5f,  0.5f,  1.0f, 0.2f, 1.0f,
+             0.5f, -0.5f,  0.5f,  1.0f, 0.2f, 1.0f,
+            -0.5f, -0.5f,  0.5f,  1.0f, 0.2f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 1.0f,
+            // top (y = +0.5), cyan
+            -0.5f,  0.5f, -0.5f,  0.2f, 1.0f, 1.0f,
+            -0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 1.0f,
+             0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 1.0f,
+             0.5f,  0.5f,  0.5f,  0.2f, 1.0f, 1.0f,
+             0.5f,  0.5f, -0.5f,  0.2f, 1.0f, 1.0f,
+            -0.5f,  0.5f, -0.5f,  0.2f, 1.0f, 1.0f,
+        };
+        // clang-format on
+        const GLsizei vertexCount = sizeof(vertices) / (6 * sizeof(float));
 
-    GLFWwindow* window =
-        glfwCreateWindow(960, 540, "Black Hole Simulator", nullptr, nullptr);
-    if (!window) {
-        std::fprintf(stderr, "Failed to create window\n");
-        glfwTerminate();
-        return 1;
-    }
-    glfwMakeContextCurrent(window);
+        GLuint vao, vbo;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
 
-    // Load OpenGL function pointers via GLEW.
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        std::fprintf(stderr, "Failed to initialize GLEW\n");
-        glfwTerminate();
-        return 1;
-    }
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+                     GL_STATIC_DRAW);
 
-    std::printf("OpenGL %s\n", glGetString(GL_VERSION));
-    std::printf("Renderer: %s\n", glGetString(GL_RENDERER));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                              (void*)0);
+        glEnableVertexAttribArray(0);
 
-    // Render loop: clear to a dark blue and present, until ESC or close.
-    while (!glfwWindowShouldClose(window)) {
-        glClearColor(0.02f, 0.02f, 0.06f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                              (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        glBindVertexArray(0);
 
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        // BHS_ASSET_DIR is the absolute path to assets/, baked in at compile
+        // time by CMake (see CMakeLists.txt) so the exe finds shaders from any
+        // cwd.
+        Shader shader(BHS_ASSET_DIR "/shaders/cube.vert",
+                      BHS_ASSET_DIR "/shaders/cube.frag");
+
+        
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+
+        Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+        const float mouseSensitivity = 0.1f; // degrees per pixel
+
+        const glm::mat4 model(1.0f);
+
+        double lastFrameTime = glfwGetTime();
+
+        // Render loop
+        while (!window.shouldClose()) {
+            window.pollEvents();
+
+            const double now = glfwGetTime();
+            const float deltaTime = static_cast<float>(now - lastFrameTime);
+            lastFrameTime = now;
+
+            if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
+                window.requestClose();
+            }
+
+            if (window.isKeyPressed(GLFW_KEY_W)) {
+                camera.move(Camera::Direction::Forward, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_S)) {
+                camera.move(Camera::Direction::Backward, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_A)) {
+                camera.move(Camera::Direction::Left, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_D)) {
+                camera.move(Camera::Direction::Right, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_SPACE)) {
+                camera.move(Camera::Direction::Up, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                camera.move(Camera::Direction::Down, deltaTime);
+            }
+
+            const glm::vec2 mouse = window.cursorDelta();
+            camera.rotate(mouse.x * mouseSensitivity,
+                          -mouse.y * mouseSensitivity);
+
+            glClearColor(0.02f, 0.02f, 0.06f, 1.0f);
+            // Clear depth
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            const glm::mat4 projection = glm::perspective(
+                glm::radians(45.0f), window.aspectRatio(), 0.1f, 100.0f);
+
+            shader.use();
+            shader.setMat4("uModel", model);
+            shader.setMat4("uView", camera.viewMatrix());
+            shader.setMat4("uProjection", projection);
+
+            glBindVertexArray(vao);
+            glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+
+            window.swapBuffers();
         }
-    }
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(1, &vbo);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Fatal: %s\n", e.what());
+        return 1;
+    }
     return 0;
 }
