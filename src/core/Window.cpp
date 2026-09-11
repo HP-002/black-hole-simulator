@@ -24,6 +24,12 @@ Window::Window(int width, int height, const char* title) {
     glfwSetFramebufferSizeCallback(
         window_, [](GLFWwindow*, int w, int h) { glViewport(0, 0, w, h); });
 
+    // Hide the cursor and lock it to the window
+    glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    }
+
     // Load OpenGL function pointers via GLEW (requires a current context
     // first).
     glewExperimental = GL_TRUE;
@@ -58,6 +64,24 @@ void Window::swapBuffers() {
 
 void Window::pollEvents() {
     glfwPollEvents();
+
+    if (!glfwGetWindowAttrib(window_, GLFW_FOCUSED)) {
+        hasLastCursorPos_ = false;
+        cursorDelta_ = glm::vec2(0.0f);
+        return;
+    }
+
+    double x = 0.0;
+    double y = 0.0;
+    glfwGetCursorPos(window_, &x, &y);
+    const glm::dvec2 cursorPos(x, y);
+
+    if (!hasLastCursorPos_) {
+        lastCursorPos_ = cursorPos;
+        hasLastCursorPos_ = true;
+    }
+    cursorDelta_ = glm::vec2(cursorPos - lastCursorPos_);
+    lastCursorPos_ = cursorPos;
 }
 
 bool Window::isKeyPressed(int key) const {

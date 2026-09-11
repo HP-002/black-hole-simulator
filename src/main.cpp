@@ -2,6 +2,7 @@
 
 // Entry point
 
+#include "core/Camera.hpp"
 #include "core/Shader.hpp"
 #include "core/Window.hpp"
 
@@ -17,6 +18,7 @@ int main() {
 
         // Unit cube centered on the origin.
         // 6 faces x 2 triangles x 3 vertices = 36 vertices
+        // clang-format off
         float vertices[] = {
             // back (z = -0.5), red
             -0.5f, -0.5f, -0.5f,  1.0f, 0.2f, 0.2f,
@@ -93,39 +95,64 @@ int main() {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
 
-        const glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
-                                           glm::vec3(0.0f, 0.0f, 0.0f),
-                                           glm::vec3(0.0f, 1.0f, 0.0f));
+        Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+        const float mouseSensitivity = 0.1f; // degrees per pixel
+
+        const glm::mat4 model(1.0f);
+
+        double lastFrameTime = glfwGetTime();
 
         // Render loop
         while (!window.shouldClose()) {
+            window.pollEvents();
+
+            const double now = glfwGetTime();
+            const float deltaTime = static_cast<float>(now - lastFrameTime);
+            lastFrameTime = now;
+
+            if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
+                window.requestClose();
+            }
+
+            if (window.isKeyPressed(GLFW_KEY_W)) {
+                camera.move(Camera::Direction::Forward, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_S)) {
+                camera.move(Camera::Direction::Backward, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_A)) {
+                camera.move(Camera::Direction::Left, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_D)) {
+                camera.move(Camera::Direction::Right, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_SPACE)) {
+                camera.move(Camera::Direction::Up, deltaTime);
+            }
+            if (window.isKeyPressed(GLFW_KEY_LEFT_SHIFT)) {
+                camera.move(Camera::Direction::Down, deltaTime);
+            }
+
+            const glm::vec2 mouse = window.cursorDelta();
+            camera.rotate(mouse.x * mouseSensitivity,
+                          -mouse.y * mouseSensitivity);
+
             glClearColor(0.02f, 0.02f, 0.06f, 1.0f);
             // Clear depth
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            // Rotate around a tilted axis
-            const float time = static_cast<float>(glfwGetTime());
-            const glm::mat4 model = glm::rotate(
-                glm::mat4(1.0f), time,
-                glm::normalize(glm::vec3(0.5f, 1.0f, 0.0f)));
 
             const glm::mat4 projection = glm::perspective(
                 glm::radians(45.0f), window.aspectRatio(), 0.1f, 100.0f);
 
             shader.use();
             shader.setMat4("uModel", model);
-            shader.setMat4("uView", view);
+            shader.setMat4("uView", camera.viewMatrix());
             shader.setMat4("uProjection", projection);
 
             glBindVertexArray(vao);
             glDrawArrays(GL_TRIANGLES, 0, vertexCount);
 
             window.swapBuffers();
-            window.pollEvents();
-
-            if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
-                window.requestClose();
-            }
         }
 
         glDeleteVertexArrays(1, &vao);

@@ -3,6 +3,7 @@
 // GLEW MUST be included before GLFW
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 class Window {
   public:
@@ -21,8 +22,13 @@ class Window {
 
     float aspectRatio() const;
 
+    glm::vec2 cursorDelta() const { return cursorDelta_; }
+
     GLFWwindow* handle() const { return window_; }
 
   private:
     GLFWwindow* window_ = nullptr;
+    glm::dvec2 lastCursorPos_{0.0};
+    glm::vec2 cursorDelta_{0.0f};
+    bool hasLastCursorPos_ = false;
 };
