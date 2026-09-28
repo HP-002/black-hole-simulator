@@ -5,8 +5,8 @@
 namespace {
 
 struct State {
-    glm::dvec2 pos;
-    glm::dvec2 vel;
+    glm::dvec3 pos;
+    glm::dvec3 vel;
 };
 
 State offset(const State& s, const State& d, double t) {
@@ -36,14 +36,38 @@ double Schwarzschild::criticalImpactParameter() const {
     return 1.5 * std::sqrt(3.0) * rs_;
 }
 
+glm::dvec3
+Schwarzschild::coordinateDirection(const glm::dvec3& position,
+                                   const glm::dvec3& localDirection) const {
+    const glm::dvec3 radial = glm::normalize(position);
+    const double along = glm::dot(localDirection, radial);
+    const double f = 1.0 - rs_ / glm::length(position);
+    return glm::normalize(localDirection +
+                          (std::sqrt(f) - 1.0) * along * radial);
+}
+
 TracedRay Schwarzschild::trace(const glm::dvec2& origin,
                                const glm::dvec2& direction,
                                const TraceSettings& settings) const {
-    State s{origin, glm::normalize(direction)};
-    const double h = s.pos.x * s.vel.y - s.pos.y * s.vel.x;
-    const double strength = 1.5 * rs_ * h * h;
-
+    const TracedRay3 ray3 =
+        trace(glm::dvec3(origin, 0.0), glm::dvec3(direction, 0.0), settings);
     TracedRay ray;
+    ray.fate = ray3.fate;
+    ray.path.reserve(ray3.path.size());
+    for (const glm::dvec3& p : ray3.path) {
+        ray.path.emplace_back(p);
+    }
+    return ray;
+}
+
+TracedRay3 Schwarzschild::trace(const glm::dvec3& origin,
+                                const glm::dvec3& direction,
+                                const TraceSettings& settings) const {
+    State s{origin, glm::normalize(direction)};
+    const glm::dvec3 h = glm::cross(s.pos, s.vel);
+    const double strength = 1.5 * rs_ * glm::dot(h, h);
+
+    TracedRay3 ray;
     ray.path.push_back(s.pos);
     for (int step = 0;; ++step) {
         const double r = glm::length(s.pos);
