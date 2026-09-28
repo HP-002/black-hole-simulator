@@ -17,7 +17,12 @@ struct TracedRay {
     RayFate fate = RayFate::Unfinished;
 };
 
-// Photon paths around a non-rotating black hole, in the orbital plane.
+struct TracedRay3 {
+    std::vector<glm::dvec3> path;
+    RayFate fate = RayFate::Unfinished;
+};
+
+// Photon paths around a non-rotating black hole.
 // x'' = -1.5 rs h^2 x / r^5 (h = |x cross v|) matches u'' + u = 1.5 rs u^2
 class Schwarzschild {
   public:
@@ -27,8 +32,15 @@ class Schwarzschild {
     double photonSphereRadius() const { return 1.5 * rs_; }
     double criticalImpactParameter() const;
 
+    // Direction seen by an observer hovering at position -> coordinate
+    // direction (radial part scaled by sqrt(1 - rs / r)), r > rs
+    glm::dvec3 coordinateDirection(const glm::dvec3& position,
+                                   const glm::dvec3& localDirection) const;
+
     TracedRay trace(const glm::dvec2& origin, const glm::dvec2& direction,
                     const TraceSettings& settings = TraceSettings()) const;
+    TracedRay3 trace(const glm::dvec3& origin, const glm::dvec3& direction,
+                     const TraceSettings& settings = TraceSettings()) const;
 
   private:
     double rs_;

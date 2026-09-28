@@ -6,7 +6,7 @@
 #include "render/Cubemap.hpp"
 #include "render/FullscreenTriangle.hpp"
 
-// Fly-through view: one camera ray per pixel against a star-field skybox
+// Fly-through view: one bent light ray per pixel, traced on the GPU
 class BlackHole3D {
   public:
     BlackHole3D();

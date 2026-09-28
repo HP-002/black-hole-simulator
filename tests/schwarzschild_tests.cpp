@@ -3,6 +3,7 @@
 #include "physics/Schwarzschild.hpp"
 
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -99,6 +100,59 @@ void photonSphereOrbitHolds() {
     check(worst < 1e-6, "tangent ray at 1.5 rs stays on the photon sphere");
 }
 
+void tiltedPlaneMatches2D() {
+    const Schwarzschild hole(1.0);
+    const glm::dmat3 rot(
+        glm::rotate(glm::dmat4(1.0), 1.1, glm::normalize(glm::dvec3(1, 2, 3))));
+    const glm::dvec2 origin(-50.0, 3.5);
+    const glm::dvec2 dir(1.0, 0.2);
+
+    const TracedRay flat = hole.trace(origin, dir);
+    const TracedRay3 tilted =
+        hole.trace(rot * glm::dvec3(origin, 0.0), rot * glm::dvec3(dir, 0.0));
+
+    bool same =
+        flat.fate == tilted.fate && flat.path.size() == tilted.path.size();
+    for (size_t i = 0; same && i < flat.path.size(); ++i) {
+        const glm::dvec3 back = glm::transpose(rot) * tilted.path[i];
+        same = glm::length(back - glm::dvec3(flat.path[i], 0.0)) < 1e-9;
+    }
+    check(same, "3D ray in a tilted plane matches the 2D path");
+}
+
+void staticObserverShadowEdge() {
+    // sin(alpha) = (b_crit / r) sqrt(1 - rs / r), alpha from the inward radial
+    const Schwarzschild hole(1.0);
+    const double r = 12.0;
+    const double edge = std::asin(hole.criticalImpactParameter() / r *
+                                  std::sqrt(1.0 - hole.rs() / r));
+    const glm::dvec3 pos(0.0, 0.0, r);
+    const auto fateAt = [&](double alpha) {
+        const glm::dvec3 local(std::sin(alpha), 0.0, -std::cos(alpha));
+        return hole.trace(pos, hole.coordinateDirection(pos, local)).fate;
+    };
+    check(fateAt(0.99 * edge) == RayFate::Captured,
+          "ray just inside the shadow edge is captured");
+    check(fateAt(1.01 * edge) == RayFate::Escaped,
+          "ray just outside the shadow edge escapes");
+}
+
+void coordinateDirectionLimits() {
+    const Schwarzschild hole(1.0);
+    const glm::dvec3 local = glm::normalize(glm::dvec3(1.0, 2.0, -3.0));
+    check(glm::length(hole.coordinateDirection(glm::dvec3(0, 0, 1e9), local) -
+                      local) < 1e-8,
+          "far away, coordinate and local directions agree");
+
+    const glm::dvec3 pos(0.0, 0.0, 2.0);
+    const glm::dvec3 radial(0.0, 0.0, -1.0);
+    const glm::dvec3 tangent(1.0, 0.0, 0.0);
+    check(glm::length(hole.coordinateDirection(pos, radial) - radial) < 1e-12 &&
+              glm::length(hole.coordinateDirection(pos, tangent) - tangent) <
+                  1e-12,
+          "purely radial and tangential directions are unchanged");
+}
+
 void stepLimitStopsTrace() {
     TraceSettings settings;
     settings.maxSteps = 10;
@@ -116,6 +170,9 @@ int main() {
     deflectionIsMirrorSymmetric();
     radialRayFallsStraightIn();
     photonSphereOrbitHolds();
+    tiltedPlaneMatches2D();
+    staticObserverShadowEdge();
+    coordinateDirectionLimits();
     stepLimitStopsTrace();
 
     if (failures == 0) {
