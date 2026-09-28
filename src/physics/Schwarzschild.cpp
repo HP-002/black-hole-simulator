@@ -46,6 +46,15 @@ Schwarzschild::coordinateDirection(const glm::dvec3& position,
                           (std::sqrt(f) - 1.0) * along * radial);
 }
 
+double Schwarzschild::impactParameter(const glm::dvec3& position,
+                                      const glm::dvec3& direction) const {
+    // 1 / b^2 = 1 / (r sin(psi))^2 - rs / r^3, psi from the radial
+    const double r = glm::length(position);
+    const double rSinPsi =
+        glm::length(glm::cross(position, glm::normalize(direction)));
+    return 1.0 / std::sqrt(1.0 / (rSinPsi * rSinPsi) - rs_ / (r * r * r));
+}
+
 TracedRay Schwarzschild::trace(const glm::dvec2& origin,
                                const glm::dvec2& direction,
                                const TraceSettings& settings) const {

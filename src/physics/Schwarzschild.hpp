@@ -37,6 +37,10 @@ class Schwarzschild {
     glm::dvec3 coordinateDirection(const glm::dvec3& position,
                                    const glm::dvec3& localDirection) const;
 
+    // b = L / E of a photon at position moving along coordinate direction
+    double impactParameter(const glm::dvec3& position,
+                           const glm::dvec3& direction) const;
+
     TracedRay trace(const glm::dvec2& origin, const glm::dvec2& direction,
                     const TraceSettings& settings = TraceSettings()) const;
     TracedRay3 trace(const glm::dvec3& origin, const glm::dvec3& direction,
