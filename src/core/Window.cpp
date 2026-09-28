@@ -8,7 +8,7 @@ Window::Window(int width, int height, const char* title) {
         throw std::runtime_error("Failed to initialize GLFW");
     }
 
-    // Ask for a modern OpenGL 4.3 core context (4.3 = compute shaders later).
+    // OpenGL 4.3 core (compute shaders)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -20,7 +20,7 @@ Window::Window(int width, int height, const char* title) {
     }
     glfwMakeContextCurrent(window_);
 
-    // Keep the GL viewport matched to the framebuffer when the window resizes.
+    // Match viewport to framebuffer on resize
     glfwSetFramebufferSizeCallback(
         window_, [](GLFWwindow*, int w, int h) { glViewport(0, 0, w, h); });
 
@@ -30,8 +30,7 @@ Window::Window(int width, int height, const char* title) {
         glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     }
 
-    // Load OpenGL function pointers via GLEW (requires a current context
-    // first).
+    // GLEW needs a current context
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
         glfwDestroyWindow(window_);
@@ -92,6 +91,6 @@ float Window::aspectRatio() const {
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(window_, &width, &height);
-    // Check for division by zero
+    // Zero height when minimized
     return height > 0 ? static_cast<float>(width) / height : 1.0f;
 }

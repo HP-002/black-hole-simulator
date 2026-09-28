@@ -44,9 +44,9 @@ bool isFinite(const glm::vec3& v) {
 
 void defaultViewMatchesLookAt() {
     const Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
-    const glm::mat4 expected = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
-                                           glm::vec3(0.0f, 0.0f, 0.0f),
-                                           glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::mat4 expected =
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                    glm::vec3(0.0f, 1.0f, 0.0f));
     check(approxEqual(camera.viewMatrix(), expected),
           "default camera at (0,0,3) matches lookAt toward the origin");
 }

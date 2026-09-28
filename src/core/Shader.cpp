@@ -2,7 +2,6 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -29,7 +28,8 @@ GLuint compileShader(GLenum type, const char* source) {
     if (!ok) {
         char log[1024];
         glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
-        std::fprintf(stderr, "Shader compile error:\n%s\n", log);
+        glDeleteShader(shader);
+        throw std::runtime_error(std::string("Shader compile error:\n") + log);
     }
     return shader;
 }
@@ -41,23 +41,30 @@ Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
     const std::string fragCode = readFile(fragPath);
 
     GLuint vert = compileShader(GL_VERTEX_SHADER, vertCode.c_str());
-    GLuint frag = compileShader(GL_FRAGMENT_SHADER, fragCode.c_str());
+    GLuint frag = 0;
+    try {
+        frag = compileShader(GL_FRAGMENT_SHADER, fragCode.c_str());
+    } catch (...) {
+        glDeleteShader(vert);
+        throw;
+    }
 
     program_ = glCreateProgram();
     glAttachShader(program_, vert);
     glAttachShader(program_, frag);
     glLinkProgram(program_);
 
+    glDeleteShader(vert);
+    glDeleteShader(frag);
+
     GLint linked = 0;
     glGetProgramiv(program_, GL_LINK_STATUS, &linked);
     if (!linked) {
         char log[1024];
         glGetProgramInfoLog(program_, sizeof(log), nullptr, log);
-        std::fprintf(stderr, "Program link error:\n%s\n", log);
+        glDeleteProgram(program_);
+        throw std::runtime_error(std::string("Program link error:\n") + log);
     }
-
-    glDeleteShader(vert);
-    glDeleteShader(frag);
 }
 
 Shader::~Shader() {
@@ -70,6 +77,5 @@ void Shader::use() const {
 
 void Shader::setMat4(const std::string& name, const glm::mat4& value) const {
     GLint location = glGetUniformLocation(program_, name.c_str());
-    
     glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
 }
