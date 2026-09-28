@@ -6,7 +6,8 @@
 #include "render/Cubemap.hpp"
 #include "render/FullscreenTriangle.hpp"
 
-// Fly-through view: one bent light ray per pixel, traced on the GPU
+// Fly-through view: one bent light ray per pixel, traced on the GPU,
+// with a thin accretion disk
 class BlackHole3D {
   public:
     BlackHole3D();
