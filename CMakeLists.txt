@@ -23,20 +23,21 @@ find_package(glm CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 
 # ── The executable ───────────────────────────────────────────────────
-# Add new .cpp files here as created (src/core, src/render, etc.)
+# Add new .cpp files here
 add_executable(BlackHoleSim
     src/main.cpp
     src/core/Window.cpp
     src/core/Shader.cpp
     src/core/Camera.cpp
+    src/render/Mesh2D.cpp
+    src/physics/Schwarzschild.cpp
+    src/app/Lensing2D.cpp
 )
 
-# Let code do  #include "core/Window.hpp"  from anywhere under src/.
+# Includes are relative to src/
 target_include_directories(BlackHoleSim PRIVATE src)
 
-# Absolute path to runtime assets (shaders, textures), baked in at compile time.
-# Lets the exe find its shaders from any working directory, and lets one edit a
-# shader and re-run without rebuilding (the path points at the source tree).
+# Absolute assets path: works from any cwd, shader edits need no rebuild
 target_compile_definitions(BlackHoleSim PRIVATE
     BHS_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 
@@ -48,7 +49,7 @@ target_link_libraries(BlackHoleSim PRIVATE
 )
 
 # ── Tests ────────────────────────────────────────────────────────────
-# Math that doesn't need a window gets its own small executable. Run with:
+# Window-free math tests. Run with:
 #   ctest --test-dir build/mingw-debug --output-on-failure
 enable_testing()
 
@@ -60,8 +61,16 @@ target_include_directories(camera_tests PRIVATE src)
 target_link_libraries(camera_tests PRIVATE glm::glm)
 add_test(NAME camera_tests COMMAND camera_tests)
 
+add_executable(schwarzschild_tests
+    tests/schwarzschild_tests.cpp
+    src/physics/Schwarzschild.cpp
+)
+target_include_directories(schwarzschild_tests PRIVATE src)
+target_link_libraries(schwarzschild_tests PRIVATE glm::glm)
+add_test(NAME schwarzschild_tests COMMAND schwarzschild_tests)
+
 # Turn on compiler warnings
-foreach(target BlackHoleSim camera_tests)
+foreach(target BlackHoleSim camera_tests schwarzschild_tests)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
