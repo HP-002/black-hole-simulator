@@ -13,7 +13,8 @@ constexpr float kFovDegrees = 60.0f;      // vertical
 constexpr float kMouseSensitivity = 0.1f; // degrees per pixel
 constexpr float kMinRs = 0.25f;
 constexpr float kMaxRs = 3.0f;
-constexpr float kMassRate = 0.5f; // log(rs) per second
+constexpr float kMassRate = 0.5f;         // log(rs) per second
+constexpr float kMinEscapeRadius = 50.0f; // in rs; bending left < 1e-4 rad
 
 } // namespace
 
@@ -65,6 +66,10 @@ void BlackHole3D::render(float aspectRatio) const {
     shader_.setFloat("uTanHalfFov", std::tan(glm::radians(kFovDegrees) / 2.0f));
     shader_.setFloat("uAspect", aspectRatio);
     shader_.setFloat("uRs", rs_);
+    // Past the camera, so rays reach perihelion before escaping
+    shader_.setFloat("uEscapeRadius",
+                     std::fmax(kMinEscapeRadius * rs_,
+                               2.0f * glm::length(camera_.position())));
     shader_.setInt("uSkybox", 0);
 
     skybox_.bind(0);

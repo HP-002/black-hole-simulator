@@ -55,9 +55,10 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | W / S | Move the light beam up / down |
 
 ## Status
-Phase 3 (in progress): 3D view. One camera ray per pixel against a procedural
-star-field skybox. The black hole is a plain black sphere of radius rs for now
-(no light bending yet).
+Phase 3: 3D view. One light ray per pixel is bent around the black hole on the
+GPU (same integrator as the 2D view) against a procedural star-field skybox.
+The camera is an observer hovering in place, so the shadow has the physical
+size: sin(a) = (b_crit / r) sqrt(1 - rs / r), with b_crit ≈ 2.6 rs.
 
 Phase 2: 2D lensing. A beam of light rays bends around a Schwarzschild black
 hole (top-down view). Yellow rays escape, red rays fall in. The blue ring is the
