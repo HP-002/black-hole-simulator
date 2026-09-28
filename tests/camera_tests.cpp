@@ -87,6 +87,27 @@ void yawTurnsRight() {
           "+90 degrees yaw turns from -z to +x");
 }
 
+void basisIsOrthonormal() {
+    Camera camera(glm::vec3(0.0f));
+    check(approxEqual(camera.right(), glm::vec3(1.0f, 0.0f, 0.0f)),
+          "default right is +x");
+
+    camera.rotate(37.0f, 21.0f);
+    const glm::vec3& f = camera.front();
+    const glm::vec3& r = camera.right();
+    const glm::vec3& u = camera.up();
+    check(approxEqual(glm::length(f), 1.0f) &&
+              approxEqual(glm::length(r), 1.0f) &&
+              approxEqual(glm::length(u), 1.0f),
+          "basis vectors are unit length");
+    check(approxEqual(glm::dot(f, r), 0.0f) &&
+              approxEqual(glm::dot(f, u), 0.0f) &&
+              approxEqual(glm::dot(r, u), 0.0f),
+          "basis vectors are orthogonal");
+    check(approxEqual(glm::cross(r, u), -f),
+          "right-handed: right x up points behind the camera");
+}
+
 void pitchIsClampedAndStaysFinite() {
     Camera camera(glm::vec3(0.0f));
 
@@ -110,6 +131,7 @@ int main() {
     forwardThenBackwardReturnsHome();
     strafeAndVertical();
     yawTurnsRight();
+    basisIsOrthonormal();
     pitchIsClampedAndStaysFinite();
 
     if (failures == 0) {
