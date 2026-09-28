@@ -38,11 +38,27 @@ ctest --test-dir build/mingw-debug --output-on-failure
 ## Controls
 | Key | Action |
 |---|---|
+| 1 / 2 | 3D view / 2D view |
 | Up / Down | Grow / shrink the black hole |
-| W / S | Move the light beam up / down |
 | Esc | Quit |
 
+3D view:
+| Key | Action |
+|---|---|
+| W / A / S / D | Fly forward / left / back / right |
+| Space / Left Shift | Fly up / down |
+| Mouse | Look around |
+
+2D view:
+| Key | Action |
+|---|---|
+| W / S | Move the light beam up / down |
+
 ## Status
+Phase 3 (in progress): 3D view. One camera ray per pixel against a procedural
+star-field skybox. The black hole is a plain black sphere of radius rs for now
+(no light bending yet).
+
 Phase 2: 2D lensing. A beam of light rays bends around a Schwarzschild black
 hole (top-down view). Yellow rays escape, red rays fall in. The blue ring is the
 photon sphere (1.5 rs). White rays hit the step limit while orbiting.
