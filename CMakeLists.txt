@@ -29,6 +29,9 @@ add_executable(BlackHoleSim
     src/core/Window.cpp
     src/core/Shader.cpp
     src/core/Camera.cpp
+    src/render/Mesh2D.cpp
+    src/physics/Schwarzschild.cpp
+    src/app/Lensing2D.cpp
 )
 
 # Includes are relative to src/

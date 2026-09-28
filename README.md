@@ -28,7 +28,21 @@ cmake --preset mingw-debug      # configures (finds GLFW/GLEW/GLM from MSYS2)
 cmake --build --preset mingw-debug
 ./build/mingw-debug/BlackHoleSim.exe
 ```
-A dark window and an `OpenGL <version>` line means the environment works.
+An `OpenGL <version>` line on startup means the environment works.
+
+Tests:
+```sh
+ctest --test-dir build/mingw-debug --output-on-failure
+```
+
+## Controls
+| Key | Action |
+|---|---|
+| Up / Down | Grow / shrink the black hole |
+| W / S | Move the light beam up / down |
+| Esc | Quit |
 
 ## Status
-Phase 0 — environment setup. The current `src/main.cpp` is a throwaway smoke test.
+Phase 2: 2D lensing. A beam of light rays bends around a Schwarzschild black
+hole (top-down view). Yellow rays escape, red rays fall in. The blue ring is the
+photon sphere (1.5 rs). White rays hit the step limit while orbiting.
