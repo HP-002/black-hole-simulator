@@ -9,22 +9,130 @@ uniform vec3 uCameraUp;
 uniform float uTanHalfFov;
 uniform float uAspect;
 uniform float uRs;
+uniform float uEscapeRadius;
+uniform float uDiskInner;
+uniform float uDiskOuter;
 uniform samplerCube uSkybox;
 
-bool hitsHorizon(vec3 origin, vec3 dir) {
-    float b = dot(origin, dir);
-    float c = dot(origin, origin) - uRs * uRs;
-    if (c <= 0.0) {
-        return true; // inside
+// Mirrors physics/Schwarzschild.cpp and physics/AccretionDisk.cpp
+const float kStepFraction = 0.05; // step length / r
+const int kMaxSteps = 500;
+const float kDiskPeakKelvin = 4000.0; // artistic; real disks emit X-rays
+const float kDiskBrightness = 1.5;
+
+// Hovering observer's view -> coordinate direction
+vec3 coordinateDirection(vec3 pos, vec3 dir) {
+    vec3 radial = normalize(pos);
+    float f = 1.0 - uRs / length(pos);
+    return normalize(dir + (sqrt(f) - 1.0) * dot(dir, radial) * radial);
+}
+
+// b = L / E along a unit coordinate direction
+float impactParameter(vec3 pos, vec3 dir) {
+    float rSinPsi = length(cross(pos, dir));
+    if (rSinPsi == 0.0) {
+        return 0.0;
     }
-    return b < 0.0 && b * b >= c;
+    float r = length(pos);
+    return 1.0 / sqrt(1.0 / (rSinPsi * rSinPsi) - uRs / (r * r * r));
+}
+
+float diskProfile(float r) {
+    float x = uDiskInner / r;
+    return pow(x, 0.75) * pow(1.0 - sqrt(x), 0.25);
+}
+
+// Peak 1 at r = (49 / 36) r_in
+float diskTemperature(float r) {
+    if (r <= uDiskInner) {
+        return 0.0;
+    }
+    return diskProfile(r) / diskProfile(49.0 / 36.0 * uDiskInner);
+}
+
+// Observed / emitted energy; lambda = L_y / E of the photon
+float redshiftFactor(float r, float lambda) {
+    float omega = sqrt(uRs / (2.0 * r * r * r));
+    float emitter = sqrt(1.0 - 1.5 * uRs / r);
+    float observer = sqrt(1.0 - uRs / length(uCameraPos));
+    return emitter / (observer * (1.0 - omega * lambda));
+}
+
+// Approximate blackbody color (Tanner Helland fit)
+vec3 blackbody(float kelvin) {
+    float t = kelvin / 100.0;
+    vec3 c;
+    c.r = t <= 66.0 ? 255.0 : 329.698727446 * pow(t - 60.0, -0.1332047592);
+    c.g = t <= 66.0 ? 99.4708025861 * log(t) - 161.1195681661
+                    : 288.1221695283 * pow(t - 60.0, -0.0755148492);
+    c.b = t >= 66.0   ? 255.0
+          : t <= 19.0 ? 0.0
+                      : 138.5177312231 * log(t - 10.0) - 305.0447927307;
+    return clamp(c / 255.0, 0.0, 1.0);
+}
+
+vec3 diskColor(float r, float lambda) {
+    float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
+    vec3 light = blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
+                 pow(temperature, 4.0);
+    return 1.0 - exp(-light); // tone map
+}
+
+// d/dt (pos, vel) for x'' = -strength x / r^5
+void derivative(vec3 pos, vec3 vel, float strength, out vec3 dPos,
+                out vec3 dVel) {
+    float r2 = dot(pos, pos);
+    dPos = vel;
+    dVel = -strength * pos / (r2 * r2 * sqrt(r2));
+}
+
+void rk4Step(inout vec3 pos, inout vec3 vel, float strength, float dt) {
+    vec3 p1, v1, p2, v2, p3, v3, p4, v4;
+    derivative(pos, vel, strength, p1, v1);
+    derivative(pos + p1 * dt / 2.0, vel + v1 * dt / 2.0, strength, p2, v2);
+    derivative(pos + p2 * dt / 2.0, vel + v2 * dt / 2.0, strength, p3, v3);
+    derivative(pos + p3 * dt, vel + v3 * dt, strength, p4, v4);
+    pos += (p1 + 2.0 * p2 + 2.0 * p3 + p4) * dt / 6.0;
+    vel += (v1 + 2.0 * v2 + 2.0 * v3 + v4) * dt / 6.0;
+}
+
+vec3 trace(vec3 pos, vec3 dir) {
+    if (length(pos) <= uRs) {
+        return vec3(0.0);
+    }
+    vec3 vel = coordinateDirection(pos, dir);
+    vec3 h = cross(pos, vel);
+    float strength = 1.5 * uRs * dot(h, h);
+    // Real photon runs backwards along the traced path: L = -h
+    float lambda =
+        dot(h, h) > 0.0 ? -impactParameter(pos, vel) * normalize(h).y : 0.0;
+
+    for (int i = 0; i < kMaxSteps; ++i) {
+        float r = length(pos);
+        if (r <= uRs) {
+            return vec3(0.0);
+        }
+        if (r >= uEscapeRadius && dot(pos, vel) > 0.0) {
+            // Level 0: no derivatives in divergent flow
+            return textureLod(uSkybox, normalize(vel), 0.0).rgb;
+        }
+        vec3 prev = pos;
+        rk4Step(pos, vel, strength, kStepFraction * r / length(vel));
+
+        // Crossed the disk plane (y = 0) this step
+        if (prev.y * pos.y <= 0.0 && prev.y != pos.y) {
+            float rHit = length(mix(prev, pos, prev.y / (prev.y - pos.y)));
+            if (rHit >= uDiskInner && rHit <= uDiskOuter) {
+                return diskColor(rHit, lambda);
+            }
+        }
+    }
+    return vec3(0.0); // still orbiting
 }
 
 void main() {
     vec3 dir = normalize(uCameraFront +
                          vNdc.x * uTanHalfFov * uAspect * uCameraRight +
                          vNdc.y * uTanHalfFov * uCameraUp);
-    vec3 color = hitsHorizon(uCameraPos, dir) ? vec3(0.0)
-                                              : texture(uSkybox, dir).rgb;
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(trace(uCameraPos, dir), 1.0);
 }
