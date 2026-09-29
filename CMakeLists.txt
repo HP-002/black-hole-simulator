@@ -30,8 +30,13 @@ add_executable(BlackHoleSim
     src/core/Shader.cpp
     src/core/Camera.cpp
     src/render/Mesh2D.cpp
+    src/render/StarField.cpp
+    src/render/Cubemap.cpp
+    src/render/FullscreenTriangle.cpp
     src/physics/Schwarzschild.cpp
+    src/physics/AccretionDisk.cpp
     src/app/Lensing2D.cpp
+    src/app/BlackHole3D.cpp
 )
 
 # Includes are relative to src/
@@ -69,8 +74,26 @@ target_include_directories(schwarzschild_tests PRIVATE src)
 target_link_libraries(schwarzschild_tests PRIVATE glm::glm)
 add_test(NAME schwarzschild_tests COMMAND schwarzschild_tests)
 
+add_executable(accretion_disk_tests
+    tests/accretion_disk_tests.cpp
+    src/physics/AccretionDisk.cpp
+    src/physics/Schwarzschild.cpp
+)
+target_include_directories(accretion_disk_tests PRIVATE src)
+target_link_libraries(accretion_disk_tests PRIVATE glm::glm)
+add_test(NAME accretion_disk_tests COMMAND accretion_disk_tests)
+
+add_executable(starfield_tests
+    tests/starfield_tests.cpp
+    src/render/StarField.cpp
+)
+target_include_directories(starfield_tests PRIVATE src)
+target_link_libraries(starfield_tests PRIVATE glm::glm)
+add_test(NAME starfield_tests COMMAND starfield_tests)
+
 # Turn on compiler warnings
-foreach(target BlackHoleSim camera_tests schwarzschild_tests)
+foreach(target BlackHoleSim camera_tests schwarzschild_tests
+        accretion_disk_tests starfield_tests)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
