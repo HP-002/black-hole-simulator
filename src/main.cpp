@@ -14,6 +14,8 @@
 
 namespace {
 
+constexpr double kFpsInterval = 0.5; // seconds between title updates
+
 // Back buffer -> PNG, flipped to top-down rows
 void saveScreenshot(const Window& window, const std::string& path) {
     const glm::ivec2 size = window.framebufferSize();
@@ -53,6 +55,8 @@ int main(int argc, char** argv) {
         bool show3D = true;
 
         double lastFrameTime = glfwGetTime();
+        double fpsStart = lastFrameTime;
+        int fpsFrames = 0;
 
         // Render loop
         while (!window.shouldClose()) {
@@ -61,6 +65,24 @@ int main(int argc, char** argv) {
             const double now = glfwGetTime();
             const float deltaTime = static_cast<float>(now - lastFrameTime);
             lastFrameTime = now;
+
+            // FPS averaged over kFpsInterval
+            ++fpsFrames;
+            if (now - fpsStart >= kFpsInterval) {
+                const double fps = fpsFrames / (now - fpsStart);
+                char title[128];
+                const int used = std::snprintf(
+                    title, sizeof(title),
+                    "Black Hole Simulator | %.0f FPS (%.1f ms)", fps,
+                    1000.0 / fps);
+                if (show3D) {
+                    std::snprintf(title + used, sizeof(title) - used,
+                                  " | %gx scale", view3D.renderScale());
+                }
+                window.setTitle(title);
+                fpsStart = now;
+                fpsFrames = 0;
+            }
 
             if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
                 window.requestClose();

@@ -68,6 +68,10 @@ void Window::requestClose() {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
 }
 
+void Window::setTitle(const std::string& title) {
+    glfwSetWindowTitle(window_, title.c_str());
+}
+
 void Window::swapBuffers() {
     glfwSwapBuffers(window_);
 }

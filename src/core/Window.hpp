@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include <string>
 #include <vector>
 
 class Window {
@@ -18,6 +19,7 @@ class Window {
 
     bool shouldClose() const;
     void requestClose();
+    void setTitle(const std::string& title);
     void swapBuffers();
     void pollEvents();
     bool isKeyPressed(int key) const;
