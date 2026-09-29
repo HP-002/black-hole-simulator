@@ -19,14 +19,15 @@ constexpr float kDiskInner = 3.0f;        // in rs; innermost stable orbit
 constexpr float kDiskOuter = 12.0f;       // in rs
 constexpr int kWorkGroupSize = 8;         // tracer.comp local size
 constexpr float kLowRenderScale = 0.5f;
+constexpr float kExposure = 1.0f;
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
 
 BlackHole3D::BlackHole3D()
     : tracer_(BHS_ASSET_DIR "/shaders/tracer.comp"),
-      blit_(BHS_ASSET_DIR "/shaders/fullscreen.vert",
-            BHS_ASSET_DIR "/shaders/blit.frag"),
+      toneMap_(BHS_ASSET_DIR "/shaders/fullscreen.vert",
+               BHS_ASSET_DIR "/shaders/tonemap.frag"),
       image_(GL_RGBA16F),
       skybox_(generateStarField(kSkyboxSize, kStarCount, kStarSeed)),
       // Pitched to look at the origin
@@ -99,8 +100,9 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
                       (size.y + kWorkGroupSize - 1) / kWorkGroupSize, 1);
     glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
-    blit_.use();
-    blit_.setInt("uImage", 0);
+    toneMap_.use();
+    toneMap_.setInt("uImage", 0);
+    toneMap_.setFloat("uExposure", kExposure);
     image_.bind(0);
     screen_.draw();
 }

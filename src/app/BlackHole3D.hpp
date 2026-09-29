@@ -20,7 +20,7 @@ class BlackHole3D {
 
   private:
     Shader tracer_;
-    Shader blit_;
+    Shader toneMap_;
     Texture2D image_;
     FullscreenTriangle screen_;
     Cubemap skybox_;

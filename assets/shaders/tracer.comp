@@ -72,11 +72,11 @@ vec3 blackbody(float kelvin) {
     return clamp(c / 255.0, 0.0, 1.0);
 }
 
+// Linear HDR radiance; tone mapped later
 vec3 diskColor(float r, float lambda) {
     float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
-    vec3 light = blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
-                 pow(temperature, 4.0);
-    return 1.0 - exp(-light); // tone map
+    return blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
+           pow(temperature, 4.0);
 }
 
 // d/dt (pos, vel) for x'' = -strength x / r^5
