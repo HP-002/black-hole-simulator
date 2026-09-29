@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
             glClear(GL_COLOR_BUFFER_BIT);
             if (show3D) {
                 view3D.update(window, deltaTime);
-                view3D.render(window.aspectRatio());
+                view3D.render(window.framebufferSize());
             } else {
                 view2D.update(window, deltaTime);
                 view2D.render(window.aspectRatio());

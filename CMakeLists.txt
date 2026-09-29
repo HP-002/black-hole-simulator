@@ -34,6 +34,7 @@ add_executable(BlackHoleSim
     src/render/StarField.cpp
     src/render/Cubemap.cpp
     src/render/FullscreenTriangle.cpp
+    src/render/Texture2D.cpp
     src/physics/Schwarzschild.cpp
     src/physics/AccretionDisk.cpp
     src/app/Lensing2D.cpp

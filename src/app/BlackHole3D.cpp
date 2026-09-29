@@ -17,13 +17,16 @@ constexpr float kMassRate = 0.5f;         // log(rs) per second
 constexpr float kMinEscapeRadius = 50.0f; // in rs; bending left < 1e-4 rad
 constexpr float kDiskInner = 3.0f;        // in rs; innermost stable orbit
 constexpr float kDiskOuter = 12.0f;       // in rs
+constexpr int kWorkGroupSize = 8;         // tracer.comp local size
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
 
 BlackHole3D::BlackHole3D()
-    : shader_(BHS_ASSET_DIR "/shaders/fullscreen.vert",
-              BHS_ASSET_DIR "/shaders/blackhole.frag"),
+    : tracer_(BHS_ASSET_DIR "/shaders/tracer.comp"),
+      blit_(BHS_ASSET_DIR "/shaders/fullscreen.vert",
+            BHS_ASSET_DIR "/shaders/blit.frag"),
+      image_(GL_RGBA8),
       skybox_(generateStarField(kSkyboxSize, kStarCount, kStarSeed)),
       // Pitched to look at the origin
       camera_(kStartPosition, -90.0f,
@@ -62,22 +65,36 @@ void BlackHole3D::update(const Window& window, float deltaTime) {
     }
 }
 
-void BlackHole3D::render(float aspectRatio) const {
-    shader_.use();
-    shader_.setVec3("uCameraPos", camera_.position());
-    shader_.setVec3("uCameraFront", camera_.front());
-    shader_.setVec3("uCameraRight", camera_.right());
-    shader_.setVec3("uCameraUp", camera_.up());
-    shader_.setFloat("uTanHalfFov", std::tan(glm::radians(kFovDegrees) / 2.0f));
-    shader_.setFloat("uAspect", aspectRatio);
-    shader_.setFloat("uRs", rs_);
-    shader_.setFloat("uEscapeRadius",
+void BlackHole3D::render(glm::ivec2 framebufferSize) {
+    if (framebufferSize.x <= 0 || framebufferSize.y <= 0) {
+        return; // minimized
+    }
+    image_.resize(framebufferSize);
+    const glm::ivec2 size = image_.size();
+
+    tracer_.use();
+    tracer_.setVec3("uCameraPos", camera_.position());
+    tracer_.setVec3("uCameraFront", camera_.front());
+    tracer_.setVec3("uCameraRight", camera_.right());
+    tracer_.setVec3("uCameraUp", camera_.up());
+    tracer_.setFloat("uTanHalfFov", std::tan(glm::radians(kFovDegrees) / 2.0f));
+    tracer_.setFloat("uAspect", static_cast<float>(size.x) / size.y);
+    tracer_.setFloat("uRs", rs_);
+    tracer_.setFloat("uEscapeRadius",
                      std::fmax(kMinEscapeRadius * rs_,
                                2.0f * glm::length(camera_.position())));
-    shader_.setFloat("uDiskInner", kDiskInner * rs_);
-    shader_.setFloat("uDiskOuter", kDiskOuter * rs_);
-    shader_.setInt("uSkybox", 0);
+    tracer_.setFloat("uDiskInner", kDiskInner * rs_);
+    tracer_.setFloat("uDiskOuter", kDiskOuter * rs_);
+    tracer_.setInt("uSkybox", 0);
 
     skybox_.bind(0);
+    image_.bindImage(0, GL_WRITE_ONLY);
+    glDispatchCompute((size.x + kWorkGroupSize - 1) / kWorkGroupSize,
+                      (size.y + kWorkGroupSize - 1) / kWorkGroupSize, 1);
+    glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+
+    blit_.use();
+    blit_.setInt("uImage", 0);
+    image_.bind(0);
     screen_.draw();
 }
