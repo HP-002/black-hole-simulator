@@ -27,7 +27,7 @@ BlackHole3D::BlackHole3D()
     : tracer_(BHS_ASSET_DIR "/shaders/tracer.comp"),
       blit_(BHS_ASSET_DIR "/shaders/fullscreen.vert",
             BHS_ASSET_DIR "/shaders/blit.frag"),
-      image_(GL_RGBA8),
+      image_(GL_RGBA16F),
       skybox_(generateStarField(kSkyboxSize, kStarCount, kStarSeed)),
       // Pitched to look at the origin
       camera_(kStartPosition, -90.0f,

@@ -1,7 +1,7 @@
 #version 430 core
 // One bent light ray per pixel -> uOutput
 layout(local_size_x = 8, local_size_y = 8) in;
-layout(rgba8, binding = 0) uniform writeonly image2D uOutput;
+layout(rgba16f, binding = 0) uniform writeonly image2D uOutput;
 
 uniform vec3 uCameraPos;
 uniform vec3 uCameraFront;
