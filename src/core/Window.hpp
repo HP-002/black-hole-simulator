@@ -21,6 +21,7 @@ class Window {
     bool isKeyPressed(int key) const;
 
     float aspectRatio() const;
+    glm::ivec2 framebufferSize() const;
 
     glm::vec2 cursorDelta() const { return cursorDelta_; }
 

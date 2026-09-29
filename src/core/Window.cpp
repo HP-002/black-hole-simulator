@@ -88,9 +88,14 @@ bool Window::isKeyPressed(int key) const {
 }
 
 float Window::aspectRatio() const {
+    const glm::ivec2 size = framebufferSize();
+    // Zero height when minimized
+    return size.y > 0 ? static_cast<float>(size.x) / size.y : 1.0f;
+}
+
+glm::ivec2 Window::framebufferSize() const {
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(window_, &width, &height);
-    // Zero height when minimized
-    return height > 0 ? static_cast<float>(width) / height : 1.0f;
+    return {width, height};
 }
