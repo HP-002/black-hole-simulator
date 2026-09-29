@@ -5,6 +5,8 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include <vector>
+
 class Window {
   public:
     Window(int width, int height, const char* title);
@@ -19,6 +21,8 @@ class Window {
     void swapBuffers();
     void pollEvents();
     bool isKeyPressed(int key) const;
+    // Pressed since the last pollEvents (one-shot toggles)
+    bool wasKeyPressed(int key) const;
 
     float aspectRatio() const;
     glm::ivec2 framebufferSize() const;
@@ -32,4 +36,5 @@ class Window {
     glm::dvec2 lastCursorPos_{0.0};
     glm::vec2 cursorDelta_{0.0f};
     bool hasLastCursorPos_ = false;
+    std::vector<int> keysPressed_;
 };

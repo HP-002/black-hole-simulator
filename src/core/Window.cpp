@@ -1,5 +1,6 @@
 #include "core/Window.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
 
@@ -23,6 +24,16 @@ Window::Window(int width, int height, const char* title) {
     // Match viewport to framebuffer on resize
     glfwSetFramebufferSizeCallback(
         window_, [](GLFWwindow*, int w, int h) { glViewport(0, 0, w, h); });
+
+    // Record key-down events for wasKeyPressed
+    glfwSetWindowUserPointer(window_, this);
+    glfwSetKeyCallback(window_, [](GLFWwindow* w, int key, int, int action,
+                                   int) {
+        if (action == GLFW_PRESS) {
+            auto* self = static_cast<Window*>(glfwGetWindowUserPointer(w));
+            self->keysPressed_.push_back(key);
+        }
+    });
 
     // Hide the cursor and lock it to the window
     glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -62,6 +73,7 @@ void Window::swapBuffers() {
 }
 
 void Window::pollEvents() {
+    keysPressed_.clear();
     glfwPollEvents();
 
     if (!glfwGetWindowAttrib(window_, GLFW_FOCUSED)) {
@@ -85,6 +97,11 @@ void Window::pollEvents() {
 
 bool Window::isKeyPressed(int key) const {
     return glfwGetKey(window_, key) == GLFW_PRESS;
+}
+
+bool Window::wasKeyPressed(int key) const {
+    return std::find(keysPressed_.begin(), keysPressed_.end(), key) !=
+           keysPressed_.end();
 }
 
 float Window::aspectRatio() const {

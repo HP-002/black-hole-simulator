@@ -18,6 +18,7 @@ constexpr float kMinEscapeRadius = 50.0f; // in rs; bending left < 1e-4 rad
 constexpr float kDiskInner = 3.0f;        // in rs; innermost stable orbit
 constexpr float kDiskOuter = 12.0f;       // in rs
 constexpr int kWorkGroupSize = 8;         // tracer.comp local size
+constexpr float kLowRenderScale = 0.5f;
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
@@ -54,6 +55,10 @@ void BlackHole3D::update(const Window& window, float deltaTime) {
         camera_.move(Camera::Direction::Down, deltaTime);
     }
 
+    if (window.wasKeyPressed(GLFW_KEY_R)) {
+        renderScale_ = renderScale_ == 1.0f ? kLowRenderScale : 1.0f;
+    }
+
     const glm::vec2 mouse = window.cursorDelta();
     camera_.rotate(mouse.x * kMouseSensitivity, -mouse.y * kMouseSensitivity);
 
@@ -69,7 +74,8 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
     if (framebufferSize.x <= 0 || framebufferSize.y <= 0) {
         return; // minimized
     }
-    image_.resize(framebufferSize);
+    image_.resize(glm::max(
+        glm::ivec2(glm::vec2(framebufferSize) * renderScale_ + 0.5f), 1));
     const glm::ivec2 size = image_.size();
 
     tracer_.use();

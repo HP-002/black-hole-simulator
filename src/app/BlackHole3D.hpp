@@ -16,6 +16,8 @@ class BlackHole3D {
     void update(const Window& window, float deltaTime);
     void render(glm::ivec2 framebufferSize);
 
+    float renderScale() const { return renderScale_; }
+
   private:
     Shader tracer_;
     Shader blit_;
@@ -24,4 +26,5 @@ class BlackHole3D {
     Cubemap skybox_;
     Camera camera_;
     float rs_ = 1.0f;
+    float renderScale_ = 1.0f; // traced pixels per screen pixel, per axis
 };
