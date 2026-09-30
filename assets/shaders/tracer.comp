@@ -51,9 +51,14 @@ float diskTemperature(float r) {
     return diskProfile(r) / diskProfile(49.0 / 36.0 * uDiskInner);
 }
 
+// Keplerian d(phi)/dt, coordinate time
+float angularVelocity(float r) {
+    return sqrt(uRs / (2.0 * r * r * r));
+}
+
 // Observed / emitted energy; lambda = L_y / E of the photon
 float redshiftFactor(float r, float lambda) {
-    float omega = sqrt(uRs / (2.0 * r * r * r));
+    float omega = angularVelocity(r);
     float emitter = sqrt(1.0 - 1.5 * uRs / r);
     float observer = sqrt(1.0 - uRs / length(uCameraPos));
     return emitter / (observer * (1.0 - omega * lambda));
