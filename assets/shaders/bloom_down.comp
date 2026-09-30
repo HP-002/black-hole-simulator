@@ -1,0 +1,46 @@
+#version 430 core
+// Source -> half-size image, 13-tap filter (Jimenez 2014)
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba16f, binding = 0) uniform writeonly image2D uOutput;
+
+uniform sampler2D uSource;
+uniform bool uBrightPass; // first level only
+uniform float uThreshold;
+uniform float uKnee;
+
+vec3 tap(vec2 uv, vec2 texel, float x, float y) {
+    return textureLod(uSource, uv + vec2(x, y) * texel, 0.0).rgb;
+}
+
+// Keep what exceeds uThreshold, quadratic knee below it
+vec3 brightPass(vec3 color) {
+    float brightness = max(color.r, max(color.g, color.b));
+    float soft = clamp(brightness - uThreshold + uKnee, 0.0, 2.0 * uKnee);
+    soft = soft * soft / (4.0 * uKnee + 1e-5);
+    float excess = max(soft, brightness - uThreshold);
+    return color * excess / max(brightness, 1e-5);
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uOutput);
+    if (any(greaterThanEqual(pixel, size))) {
+        return;
+    }
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+    vec2 texel = 1.0 / vec2(textureSize(uSource, 0));
+
+    // Center, inner 2x2 box, outer ring (source texels)
+    vec3 center = tap(uv, texel, 0.0, 0.0);
+    vec3 inner = tap(uv, texel, -1.0, -1.0) + tap(uv, texel, 1.0, -1.0) +
+                 tap(uv, texel, -1.0, 1.0) + tap(uv, texel, 1.0, 1.0);
+    vec3 edges = tap(uv, texel, 0.0, -2.0) + tap(uv, texel, -2.0, 0.0) +
+                 tap(uv, texel, 2.0, 0.0) + tap(uv, texel, 0.0, 2.0);
+    vec3 corners = tap(uv, texel, -2.0, -2.0) + tap(uv, texel, 2.0, -2.0) +
+                   tap(uv, texel, -2.0, 2.0) + tap(uv, texel, 2.0, 2.0);
+    vec3 color =
+        center * 0.125 + inner * 0.125 + edges * 0.0625 + corners * 0.03125;
+
+    imageStore(uOutput, pixel,
+               vec4(uBrightPass ? brightPass(color) : color, 1.0));
+}

@@ -1,7 +1,7 @@
 #version 430 core
 // One bent light ray per pixel -> uOutput
 layout(local_size_x = 8, local_size_y = 8) in;
-layout(rgba8, binding = 0) uniform writeonly image2D uOutput;
+layout(rgba16f, binding = 0) uniform writeonly image2D uOutput;
 
 uniform vec3 uCameraPos;
 uniform vec3 uCameraFront;
@@ -72,11 +72,11 @@ vec3 blackbody(float kelvin) {
     return clamp(c / 255.0, 0.0, 1.0);
 }
 
+// Linear HDR radiance; tone mapped later
 vec3 diskColor(float r, float lambda) {
     float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
-    vec3 light = blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
-                 pow(temperature, 4.0);
-    return 1.0 - exp(-light); // tone map
+    return blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
+           pow(temperature, 4.0);
 }
 
 // d/dt (pos, vel) for x'' = -strength x / r^5
