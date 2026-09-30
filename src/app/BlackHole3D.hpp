@@ -19,6 +19,7 @@ class BlackHole3D {
 
     float renderScale() const { return renderScale_; }
     float exposure() const { return exposure_; }
+    bool paused() const { return paused_; }
 
   private:
     Shader tracer_;
@@ -31,4 +32,6 @@ class BlackHole3D {
     float rs_ = 1.0f;
     float renderScale_ = 1.0f; // traced pixels per screen pixel, per axis
     float exposure_ = 1.0f;    // HDR multiplier before tone mapping
+    float time_ = 0.0f;        // coordinate time, in rs / c
+    bool paused_ = false;
 };

@@ -84,6 +84,24 @@ void weakFieldDoppler() {
           "weak field reduces to special-relativistic Doppler");
 }
 
+void keplerianRotation() {
+    const AccretionDisk disk(1.0, 3.0, 12.0);
+    // Kepler's third law: Omega^2 r^3 = M = rs / 2
+    for (double r : {3.0, 6.0, 12.0}) {
+        const double omega = disk.angularVelocity(r);
+        check(std::abs(omega * omega * r * r * r - 0.5) < 1e-12,
+              "Omega^2 r^3 = M");
+    }
+    check(disk.angularVelocity(3.0) > disk.angularVelocity(12.0),
+          "inner disk turns faster");
+
+    // Omega ~ 1 / rs at fixed r / rs: one pattern in units of rs / c
+    const AccretionDisk big(2.0, 6.0, 24.0);
+    check(std::abs(big.angularVelocity(12.0) * 2.0 - disk.angularVelocity(6.0)) <
+              1e-12,
+          "Omega scales as 1 / rs");
+}
+
 } // namespace
 
 int main() {
@@ -92,6 +110,7 @@ int main() {
     temperatureProfile();
     redshiftLimits();
     weakFieldDoppler();
+    keplerianRotation();
 
     if (failures == 0) {
         std::printf("All accretion disk tests passed\n");

@@ -23,6 +23,7 @@ constexpr float kMinExposure = 1.0f / 16.0f;
 constexpr float kMaxExposure = 16.0f;
 constexpr float kExposureRate = 1.0f; // log(exposure) per second
 constexpr float kBloomStrength = 0.1f; // bloom sums 6 levels
+constexpr float kTimeScale = 5.0f;     // rs / c per second; inner orbit ~9 s
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
@@ -40,6 +41,14 @@ BlackHole3D::BlackHole3D()
 }
 
 void BlackHole3D::update(const Window& window, float deltaTime) {
+    if (window.wasKeyPressed(GLFW_KEY_P)) {
+        paused_ = !paused_;
+    }
+    // In rs / c: changing the mass doesn't jolt the disk
+    if (!paused_) {
+        time_ += kTimeScale * deltaTime;
+    }
+
     if (window.isKeyPressed(GLFW_KEY_W)) {
         camera_.move(Camera::Direction::Forward, deltaTime);
     }
@@ -105,6 +114,7 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
     tracer_.setFloat("uDiskInner", kDiskInner * rs_);
     tracer_.setFloat("uDiskOuter", kDiskOuter * rs_);
     tracer_.setInt("uSkybox", 0);
+    tracer_.setFloat("uTime", time_);
 
     skybox_.bind(0);
     image_.bindImage(0, GL_WRITE_ONLY);
