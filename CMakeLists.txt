@@ -29,10 +29,12 @@ add_executable(BlackHoleSim
     src/core/Window.cpp
     src/core/Shader.cpp
     src/core/Camera.cpp
+    src/core/Png.cpp
     src/render/Mesh2D.cpp
     src/render/StarField.cpp
     src/render/Cubemap.cpp
     src/render/FullscreenTriangle.cpp
+    src/render/Texture2D.cpp
     src/physics/Schwarzschild.cpp
     src/physics/AccretionDisk.cpp
     src/app/Lensing2D.cpp
@@ -91,9 +93,16 @@ target_include_directories(starfield_tests PRIVATE src)
 target_link_libraries(starfield_tests PRIVATE glm::glm)
 add_test(NAME starfield_tests COMMAND starfield_tests)
 
+add_executable(png_tests
+    tests/png_tests.cpp
+    src/core/Png.cpp
+)
+target_include_directories(png_tests PRIVATE src)
+add_test(NAME png_tests COMMAND png_tests)
+
 # Turn on compiler warnings
 foreach(target BlackHoleSim camera_tests schwarzschild_tests
-        accretion_disk_tests starfield_tests)
+        accretion_disk_tests starfield_tests png_tests)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()

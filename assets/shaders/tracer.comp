@@ -1,6 +1,7 @@
 #version 430 core
-in vec2 vNdc;
-out vec4 FragColor;
+// One bent light ray per pixel -> uOutput
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rgba8, binding = 0) uniform writeonly image2D uOutput;
 
 uniform vec3 uCameraPos;
 uniform vec3 uCameraFront;
@@ -131,8 +132,15 @@ vec3 trace(vec3 pos, vec3 dir) {
 }
 
 void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uOutput);
+    if (any(greaterThanEqual(pixel, size))) {
+        return; // partial edge group
+    }
+    // Pixel center, as a fragment shader would see it
+    vec2 ndc = (vec2(pixel) + 0.5) / vec2(size) * 2.0 - 1.0;
     vec3 dir = normalize(uCameraFront +
-                         vNdc.x * uTanHalfFov * uAspect * uCameraRight +
-                         vNdc.y * uTanHalfFov * uCameraUp);
-    FragColor = vec4(trace(uCameraPos, dir), 1.0);
+                         ndc.x * uTanHalfFov * uAspect * uCameraRight +
+                         ndc.y * uTanHalfFov * uCameraUp);
+    imageStore(uOutput, pixel, vec4(trace(uCameraPos, dir), 1.0));
 }

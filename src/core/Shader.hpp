@@ -8,6 +8,7 @@
 class Shader {
   public:
     Shader(const std::string& vertPath, const std::string& fragPath);
+    explicit Shader(const std::string& computePath);
     ~Shader();
 
     // Non-copyable: it uniquely owns a GL program object.
