@@ -31,4 +31,5 @@ class BlackHole3D {
     float rs_ = 1.0f;
     float renderScale_ = 1.0f; // traced pixels per screen pixel, per axis
     float exposure_ = 1.0f;    // HDR multiplier before tone mapping
+    float time_ = 0.0f;        // coordinate time, in rs / c
 };

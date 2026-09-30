@@ -14,12 +14,16 @@ uniform float uEscapeRadius;
 uniform float uDiskInner;
 uniform float uDiskOuter;
 uniform samplerCube uSkybox;
+uniform float uTime; // coordinate time, in rs / c
 
 // Mirrors physics/Schwarzschild.cpp and physics/AccretionDisk.cpp
 const float kStepFraction = 0.05; // step length / r
 const int kMaxSteps = 500;
 const float kDiskPeakKelvin = 4000.0; // artistic; real disks emit X-rays
 const float kDiskBrightness = 1.5;
+const float kNoiseRadial = 2.0; // noise cells per rs, outwards
+const float kNoiseAround = 3.0; // noise-space circle radius
+const float kNoiseDepth = 1.0;  // density swing
 
 // Hovering observer's view -> coordinate direction
 vec3 coordinateDirection(vec3 pos, vec3 dir) {
@@ -77,11 +81,54 @@ vec3 blackbody(float kelvin) {
     return clamp(c / 255.0, 0.0, 1.0);
 }
 
+// Hash -> [0, 1) (Inigo Quilez)
+float hash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+// Smooth value noise, [0, 1]
+float valueNoise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    vec2 e = vec2(1.0, 0.0);
+    return mix(mix(mix(hash(i), hash(i + e.xyy), f.x),
+                   mix(hash(i + e.yxy), hash(i + e.xxy), f.x), f.y),
+               mix(mix(hash(i + e.yyx), hash(i + e.xyx), f.x),
+                   mix(hash(i + e.yxx), hash(i + e.xxx), f.x), f.y),
+               f.z);
+}
+
+// 4 octaves, [0, 1]
+float fbm(vec3 p) {
+    float sum = 0.0;
+    float amplitude = 0.5;
+    for (int i = 0; i < 4; ++i) {
+        sum += amplitude * valueNoise(p);
+        p = p * 2.03 + 17.0; // offset: octaves don't line up
+        amplitude *= 0.5;
+    }
+    return sum / 0.9375;
+}
+
+// Gas clumps carried round at the local Keplerian rate
+float diskDensity(vec3 hit, float r) {
+    // Prograde about +y: atan(-z, x) grows; subtract to get start angle
+    float angle = atan(-hit.z, hit.x) - angularVelocity(r) * uTime * uRs;
+    // Circle in noise space: seamless in angle
+    vec3 p = vec3(r / uRs * kNoiseRadial, kNoiseAround * cos(angle),
+                  kNoiseAround * sin(angle));
+    return max(1.0 + kNoiseDepth * (2.0 * fbm(p) - 1.0), 0.0);
+}
+
 // Linear HDR radiance; tone mapped later
-vec3 diskColor(float r, float lambda) {
+vec3 diskColor(vec3 hit, float lambda) {
+    float r = length(hit);
     float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
     return blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
-           pow(temperature, 4.0);
+           pow(temperature, 4.0) * diskDensity(hit, r);
 }
 
 // d/dt (pos, vel) for x'' = -strength x / r^5
@@ -127,9 +174,10 @@ vec3 trace(vec3 pos, vec3 dir) {
 
         // Crossed the disk plane (y = 0) this step
         if (prev.y * pos.y <= 0.0 && prev.y != pos.y) {
-            float rHit = length(mix(prev, pos, prev.y / (prev.y - pos.y)));
+            vec3 hit = mix(prev, pos, prev.y / (prev.y - pos.y));
+            float rHit = length(hit);
             if (rHit >= uDiskInner && rHit <= uDiskOuter) {
-                return diskColor(rHit, lambda);
+                return diskColor(hit, lambda);
             }
         }
     }
