@@ -41,8 +41,13 @@ BlackHole3D::BlackHole3D()
 }
 
 void BlackHole3D::update(const Window& window, float deltaTime) {
+    if (window.wasKeyPressed(GLFW_KEY_P)) {
+        paused_ = !paused_;
+    }
     // In rs / c: changing the mass doesn't jolt the disk
-    time_ += kTimeScale * deltaTime;
+    if (!paused_) {
+        time_ += kTimeScale * deltaTime;
+    }
 
     if (window.isKeyPressed(GLFW_KEY_W)) {
         camera_.move(Camera::Direction::Forward, deltaTime);
