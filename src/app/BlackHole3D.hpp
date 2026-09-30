@@ -18,6 +18,7 @@ class BlackHole3D {
     void render(glm::ivec2 framebufferSize);
 
     float renderScale() const { return renderScale_; }
+    float exposure() const { return exposure_; }
 
   private:
     Shader tracer_;
@@ -29,4 +30,5 @@ class BlackHole3D {
     Camera camera_;
     float rs_ = 1.0f;
     float renderScale_ = 1.0f; // traced pixels per screen pixel, per axis
+    float exposure_ = 1.0f;    // HDR multiplier before tone mapping
 };

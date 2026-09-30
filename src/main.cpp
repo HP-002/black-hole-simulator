@@ -77,7 +77,8 @@ int main(int argc, char** argv) {
                     1000.0 / fps);
                 if (show3D) {
                     std::snprintf(title + used, sizeof(title) - used,
-                                  " | %gx scale", view3D.renderScale());
+                                  " | %gx scale | exposure %.2f",
+                                  view3D.renderScale(), view3D.exposure());
                 }
                 window.setTitle(title);
                 fpsStart = now;
