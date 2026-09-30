@@ -101,6 +101,7 @@ void writePng(const std::string& path, int width, int height,
     std::ofstream file(path, std::ios::binary);
     file.write(reinterpret_cast<const char*>(png.data()),
                static_cast<std::streamsize>(png.size()));
+    file.close(); // flush now, so a failed final write is caught
     if (!file) {
         throw std::runtime_error("Could not write " + path);
     }

@@ -5,11 +5,9 @@ namespace {
 constexpr int kLevels = 6;         // 960x540 -> 15x8 at the bottom
 constexpr float kThreshold = 1.0f; // HDR brightness where glow starts
 constexpr float kKnee = 0.5f;      // soft ramp below the threshold
-constexpr int kWorkGroupSize = 8;  // bloom_*.comp local size
 
-void dispatch(glm::ivec2 size) {
-    glDispatchCompute((size.x + kWorkGroupSize - 1) / kWorkGroupSize,
-                      (size.y + kWorkGroupSize - 1) / kWorkGroupSize, 1);
+void dispatch(const Shader& shader, glm::ivec2 size) {
+    shader.dispatch(size);
     glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT |
                     GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 }
@@ -41,7 +39,7 @@ const Texture2D& Bloom::apply(const Texture2D& hdr) {
         down_.setInt("uBrightPass", source == &hdr);
         source->bind(0);
         level->bindImage(0, GL_WRITE_ONLY);
-        dispatch(level->size());
+        dispatch(down_, level->size());
         source = level.get();
     }
 
@@ -51,7 +49,7 @@ const Texture2D& Bloom::apply(const Texture2D& hdr) {
     for (int i = kLevels - 2; i >= 0; --i) {
         levels_[i + 1]->bind(0);
         levels_[i]->bindImage(0, GL_READ_WRITE);
-        dispatch(levels_[i]->size());
+        dispatch(up_, levels_[i]->size());
     }
     return *levels_[0];
 }

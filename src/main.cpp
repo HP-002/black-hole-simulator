@@ -7,21 +7,65 @@
 #include "core/Png.hpp"
 #include "core/Window.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
 constexpr double kFpsInterval = 0.5; // seconds between title updates
+constexpr int kTitleSize = 128;
 
-// Back buffer -> PNG, flipped to top-down rows
-void saveScreenshot(const Window& window, const std::string& path) {
-    const glm::ivec2 size = window.framebufferSize();
+// Offscreen color target for --screenshot. The window's own pixels are
+// undefined where it is covered or offscreen.
+class OffscreenTarget {
+  public:
+    explicit OffscreenTarget(glm::ivec2 size) : size_(size) {
+        glGenRenderbuffers(1, &color_);
+        glBindRenderbuffer(GL_RENDERBUFFER, color_);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, size.x, size.y);
+        glGenFramebuffers(1, &fbo_);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                  GL_RENDERBUFFER, color_);
+        const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            release();
+            throw std::runtime_error("Screenshot framebuffer incomplete");
+        }
+    }
+    ~OffscreenTarget() { release(); }
+
+    OffscreenTarget(const OffscreenTarget&) = delete;
+    OffscreenTarget& operator=(const OffscreenTarget&) = delete;
+
+    void bind() const {
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+        glViewport(0, 0, size_.x, size_.y);
+    }
+    glm::ivec2 size() const { return size_; }
+
+  private:
+    void release() {
+        glDeleteFramebuffers(1, &fbo_);
+        glDeleteRenderbuffers(1, &color_);
+    }
+
+    glm::ivec2 size_;
+    GLuint fbo_ = 0;
+    GLuint color_ = 0;
+};
+
+// Bound target -> PNG, flipped to top-down rows
+void saveScreenshot(const OffscreenTarget& target, const std::string& path) {
+    const glm::ivec2 size = target.size();
     const std::size_t rowBytes = static_cast<std::size_t>(size.x) * 3;
     std::vector<std::uint8_t> pixels(rowBytes * size.y);
-    glReadBuffer(GL_BACK);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, size.x, size.y, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
 
@@ -53,6 +97,12 @@ int main(int argc, char** argv) {
         BlackHole3D view3D;
         Lensing2D view2D;
         bool show3D = true;
+        std::unique_ptr<OffscreenTarget> screenshotTarget;
+        if (!screenshotPath.empty()) {
+            screenshotTarget =
+                std::make_unique<OffscreenTarget>(window.framebufferSize());
+            screenshotTarget->bind();
+        }
 
         double lastFrameTime = glfwGetTime();
         double fpsStart = lastFrameTime;
@@ -70,11 +120,13 @@ int main(int argc, char** argv) {
             ++fpsFrames;
             if (now - fpsStart >= kFpsInterval) {
                 const double fps = fpsFrames / (now - fpsStart);
-                char title[128];
-                const int used = std::snprintf(
+                char title[kTitleSize];
+                int used = std::snprintf(
                     title, sizeof(title),
                     "Black Hole Simulator | %.0f FPS (%.1f ms)", fps,
                     1000.0 / fps);
+                // Truncated or failed prefix: append nothing past the end
+                used = std::clamp(used, 0, kTitleSize - 1);
                 if (show3D) {
                     std::snprintf(title + used, sizeof(title) - used,
                                   " | %gx scale | exposure %.2f%s",
@@ -107,7 +159,7 @@ int main(int argc, char** argv) {
             }
 
             if (!screenshotPath.empty()) {
-                saveScreenshot(window, screenshotPath);
+                saveScreenshot(*screenshotTarget, screenshotPath);
                 break;
             }
             window.swapBuffers();

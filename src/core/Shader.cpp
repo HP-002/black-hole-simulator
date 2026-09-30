@@ -104,3 +104,10 @@ void Shader::setMat4(const std::string& name, const glm::mat4& value) const {
     GLint location = glGetUniformLocation(program_, name.c_str());
     glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
 }
+
+void Shader::dispatch(glm::ivec2 size) const {
+    GLint local[3] = {1, 1, 1}; // layout(local_size_*) of the program
+    glGetProgramiv(program_, GL_COMPUTE_WORK_GROUP_SIZE, local);
+    glDispatchCompute((size.x + local[0] - 1) / local[0],
+                      (size.y + local[1] - 1) / local[1], 1);
+}

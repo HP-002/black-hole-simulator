@@ -17,13 +17,13 @@ constexpr float kMassRate = 0.5f;         // log(rs) per second
 constexpr float kMinEscapeRadius = 50.0f; // in rs; bending left < 1e-4 rad
 constexpr float kDiskInner = 3.0f;        // in rs; innermost stable orbit
 constexpr float kDiskOuter = 12.0f;       // in rs
-constexpr int kWorkGroupSize = 8;         // tracer.comp local size
 constexpr float kLowRenderScale = 0.5f;
 constexpr float kMinExposure = 1.0f / 16.0f;
 constexpr float kMaxExposure = 16.0f;
 constexpr float kExposureRate = 1.0f; // log(exposure) per second
 constexpr float kBloomStrength = 0.1f; // bloom sums 6 levels
 constexpr float kTimeScale = 5.0f;     // rs / c per second; inner orbit ~9 s
+constexpr double kTimeChunk = 1024.0;  // rs / c; see uTimeChunks in tracer.comp
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
@@ -106,7 +106,9 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
     tracer_.setVec3("uCameraRight", camera_.right());
     tracer_.setVec3("uCameraUp", camera_.up());
     tracer_.setFloat("uTanHalfFov", std::tan(glm::radians(kFovDegrees) / 2.0f));
-    tracer_.setFloat("uAspect", static_cast<float>(size.x) / size.y);
+    // Screen aspect: the rounded image is stretched over the whole screen
+    tracer_.setFloat("uAspect",
+                     static_cast<float>(framebufferSize.x) / framebufferSize.y);
     tracer_.setFloat("uRs", rs_);
     tracer_.setFloat("uEscapeRadius",
                      std::fmax(kMinEscapeRadius * rs_,
@@ -114,12 +116,13 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
     tracer_.setFloat("uDiskInner", kDiskInner * rs_);
     tracer_.setFloat("uDiskOuter", kDiskOuter * rs_);
     tracer_.setInt("uSkybox", 0);
-    tracer_.setFloat("uTime", time_);
+    const double chunks = std::floor(time_ / kTimeChunk) * kTimeChunk;
+    tracer_.setFloat("uTimeChunks", static_cast<float>(chunks));
+    tracer_.setFloat("uTimeRest", static_cast<float>(time_ - chunks));
 
     skybox_.bind(0);
     image_.bindImage(0, GL_WRITE_ONLY);
-    glDispatchCompute((size.x + kWorkGroupSize - 1) / kWorkGroupSize,
-                      (size.y + kWorkGroupSize - 1) / kWorkGroupSize, 1);
+    tracer_.dispatch(size);
     glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
     const Texture2D& bloom = bloom_.apply(image_);

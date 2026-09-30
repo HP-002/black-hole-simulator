@@ -14,7 +14,9 @@ uniform float uEscapeRadius;
 uniform float uDiskInner;
 uniform float uDiskOuter;
 uniform samplerCube uSkybox;
-uniform float uTime; // coordinate time, in rs / c
+// Coordinate time in rs / c, split so large times keep float precision
+uniform float uTimeChunks; // whole multiple of the chunk length
+uniform float uTimeRest;   // [0, chunk length)
 
 // Mirrors physics/Schwarzschild.cpp and physics/AccretionDisk.cpp
 const float kStepFraction = 0.05; // step length / r
@@ -24,6 +26,8 @@ const float kDiskBrightness = 1.5;
 const float kNoiseRadial = 2.0; // noise cells per rs, outwards
 const float kNoiseAround = 3.0; // noise-space circle radius
 const float kNoiseDepth = 1.0;  // density swing
+const float kMaxRadiance = 1e4; // bloom sums 6 levels; stays under half max
+const float kTwoPi = 6.28318530718;
 
 // Hovering observer's view -> coordinate direction
 vec3 coordinateDirection(vec3 pos, vec3 dir) {
@@ -116,7 +120,10 @@ float fbm(vec3 p) {
 // Gas clumps carried round at the local Keplerian rate
 float diskDensity(vec3 hit, float r) {
     // Prograde about +y: atan(-z, x) grows; subtract to get start angle
-    float angle = atan(-hit.z, hit.x) - angularVelocity(r) * uTime * uRs;
+    // Big chunk part only changes every chunk; wrap it before adding the rest
+    float rate = angularVelocity(r) * uRs; // rad per rs / c
+    float turned = mod(rate * uTimeChunks, kTwoPi) + rate * uTimeRest;
+    float angle = atan(-hit.z, hit.x) - turned;
     // Circle in noise space: seamless in angle
     vec3 p = vec3(r / uRs * kNoiseRadial, kNoiseAround * cos(angle),
                   kNoiseAround * sin(angle));
@@ -127,8 +134,10 @@ float diskDensity(vec3 hit, float r) {
 vec3 diskColor(vec3 hit, float lambda) {
     float r = length(hit);
     float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
-    return blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
-           pow(temperature, 4.0) * diskDensity(hit, r);
+    // Clamped: near the horizon the blueshift overflows half floats
+    return min(blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
+                   pow(temperature, 4.0) * diskDensity(hit, r),
+               vec3(kMaxRadiance));
 }
 
 // d/dt (pos, vel) for x'' = -strength x / r^5

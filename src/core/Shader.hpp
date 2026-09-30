@@ -23,6 +23,9 @@ class Shader {
     void setVec3(const std::string& name, const glm::vec3& value) const;
     void setMat4(const std::string& name, const glm::mat4& value) const;
 
+    // Compute only: enough work groups to cover size; caller adds barriers
+    void dispatch(glm::ivec2 size) const;
+
   private:
     GLuint program_ = 0;
 };
