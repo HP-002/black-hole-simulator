@@ -20,6 +20,7 @@ constexpr float kDiskOuter = 12.0f;       // in rs
 constexpr int kWorkGroupSize = 8;         // tracer.comp local size
 constexpr float kLowRenderScale = 0.5f;
 constexpr float kExposure = 1.0f;
+constexpr float kBloomStrength = 0.1f; // bloom sums 6 levels
 const glm::vec3 kStartPosition(0.0f, 2.0f, 20.0f);
 
 } // namespace
@@ -100,9 +101,14 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
                       (size.y + kWorkGroupSize - 1) / kWorkGroupSize, 1);
     glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 
+    const Texture2D& bloom = bloom_.apply(image_);
+
     toneMap_.use();
     toneMap_.setInt("uImage", 0);
+    toneMap_.setInt("uBloom", 1);
+    toneMap_.setFloat("uBloomStrength", kBloomStrength);
     toneMap_.setFloat("uExposure", kExposure);
     image_.bind(0);
+    bloom.bind(1);
     screen_.draw();
 }

@@ -1,9 +1,11 @@
 #version 430 core
-// HDR image -> display: exposure, then ACES filmic curve
+// HDR image + bloom -> display: exposure, then ACES filmic curve
 in vec2 vNdc;
 out vec4 FragColor;
 
 uniform sampler2D uImage;
+uniform sampler2D uBloom; // half size, bilinear upscale
+uniform float uBloomStrength;
 uniform float uExposure;
 
 // Narkowicz's fit of the ACES reference curve
@@ -13,6 +15,8 @@ vec3 aces(vec3 x) {
 }
 
 void main() {
-    vec3 hdr = texture(uImage, vNdc * 0.5 + 0.5).rgb;
+    vec2 uv = vNdc * 0.5 + 0.5;
+    vec3 hdr = texture(uImage, uv).rgb +
+               uBloomStrength * texture(uBloom, uv).rgb;
     FragColor = vec4(aces(hdr * uExposure), 1.0);
 }

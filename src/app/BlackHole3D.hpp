@@ -3,6 +3,7 @@
 #include "core/Camera.hpp"
 #include "core/Shader.hpp"
 #include "core/Window.hpp"
+#include "render/Bloom.hpp"
 #include "render/Cubemap.hpp"
 #include "render/FullscreenTriangle.hpp"
 #include "render/Texture2D.hpp"
@@ -22,6 +23,7 @@ class BlackHole3D {
     Shader tracer_;
     Shader toneMap_;
     Texture2D image_;
+    Bloom bloom_;
     FullscreenTriangle screen_;
     Cubemap skybox_;
     Camera camera_;
