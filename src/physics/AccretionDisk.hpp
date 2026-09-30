@@ -9,6 +9,9 @@ class AccretionDisk {
     double outerRadius() const { return outer_; }
     bool contains(double r) const { return r >= inner_ && r <= outer_; }
 
+    // Keplerian Omega = d(phi)/dt = sqrt(M / r^3), coordinate time
+    double angularVelocity(double r) const;
+
     // Thin-disk profile T ~ r^(-3/4) (1 - sqrt(r_in / r))^(1/4), peak 1
     double temperature(double r) const;
 

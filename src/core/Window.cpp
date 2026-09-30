@@ -1,5 +1,6 @@
 #include "core/Window.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
 
@@ -23,6 +24,16 @@ Window::Window(int width, int height, const char* title) {
     // Match viewport to framebuffer on resize
     glfwSetFramebufferSizeCallback(
         window_, [](GLFWwindow*, int w, int h) { glViewport(0, 0, w, h); });
+
+    // Record key-down events for wasKeyPressed
+    glfwSetWindowUserPointer(window_, this);
+    glfwSetKeyCallback(window_, [](GLFWwindow* w, int key, int, int action,
+                                   int) {
+        if (action == GLFW_PRESS) {
+            auto* self = static_cast<Window*>(glfwGetWindowUserPointer(w));
+            self->keysPressed_.push_back(key);
+        }
+    });
 
     // Hide the cursor and lock it to the window
     glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -57,11 +68,16 @@ void Window::requestClose() {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
 }
 
+void Window::setTitle(const std::string& title) {
+    glfwSetWindowTitle(window_, title.c_str());
+}
+
 void Window::swapBuffers() {
     glfwSwapBuffers(window_);
 }
 
 void Window::pollEvents() {
+    keysPressed_.clear();
     glfwPollEvents();
 
     if (!glfwGetWindowAttrib(window_, GLFW_FOCUSED)) {
@@ -87,10 +103,20 @@ bool Window::isKeyPressed(int key) const {
     return glfwGetKey(window_, key) == GLFW_PRESS;
 }
 
+bool Window::wasKeyPressed(int key) const {
+    return std::find(keysPressed_.begin(), keysPressed_.end(), key) !=
+           keysPressed_.end();
+}
+
 float Window::aspectRatio() const {
+    const glm::ivec2 size = framebufferSize();
+    // Zero height when minimized
+    return size.y > 0 ? static_cast<float>(size.x) / size.y : 1.0f;
+}
+
+glm::ivec2 Window::framebufferSize() const {
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(window_, &width, &height);
-    // Zero height when minimized
-    return height > 0 ? static_cast<float>(width) / height : 1.0f;
+    return {width, height};
 }

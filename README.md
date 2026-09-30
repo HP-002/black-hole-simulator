@@ -30,6 +30,11 @@ cmake --build --preset mingw-debug
 ```
 An `OpenGL <version>` line on startup means the environment works.
 
+Save one frame of the 3D view and quit:
+```sh
+./build/mingw-debug/BlackHoleSim.exe --screenshot out.png
+```
+
 Tests:
 ```sh
 ctest --test-dir build/mingw-debug --output-on-failure
@@ -48,6 +53,9 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | W / A / S / D | Fly forward / left / back / right |
 | Space / Left Shift | Fly up / down |
 | Mouse | Look around |
+| E / Q | Raise / lower exposure |
+| R | Render scale 1x / 0.5x (faster) |
+| P | Pause / resume the disk |
 
 2D view:
 | Key | Action |
@@ -55,6 +63,13 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | W / S | Move the light beam up / down |
 
 ## Status
+Phase 4: rendering pipeline. A compute shader traces the rays into an HDR
+(RGBA16F) image. Bloom (bright-pass plus a chain of half-size blurs) adds glow,
+then an ACES filmic curve maps it to the screen. The window title shows FPS,
+render scale and exposure. The disk's gas swirls at the Keplerian rate for each
+radius, so the inner edge laps the outer. The physics is written up in
+[docs/physics-notes.md](docs/physics-notes.md).
+
 Phase 3: 3D view. One light ray per pixel is bent around the black hole on the
 GPU (same integrator as the 2D view) against a procedural star-field skybox.
 The camera is an observer hovering in place, so the shadow has the physical

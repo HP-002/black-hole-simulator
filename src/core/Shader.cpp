@@ -3,6 +3,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <fstream>
+#include <initializer_list>
 #include <sstream>
 #include <stdexcept>
 
@@ -34,6 +35,28 @@ GLuint compileShader(GLenum type, const char* source) {
     return shader;
 }
 
+// Links and deletes the stages
+GLuint linkProgram(std::initializer_list<GLuint> stages) {
+    GLuint program = glCreateProgram();
+    for (GLuint stage : stages) {
+        glAttachShader(program, stage);
+    }
+    glLinkProgram(program);
+    for (GLuint stage : stages) {
+        glDeleteShader(stage);
+    }
+
+    GLint linked = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &linked);
+    if (!linked) {
+        char log[1024];
+        glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+        glDeleteProgram(program);
+        throw std::runtime_error(std::string("Program link error:\n") + log);
+    }
+    return program;
+}
+
 } // namespace
 
 Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
@@ -48,23 +71,12 @@ Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
         glDeleteShader(vert);
         throw;
     }
+    program_ = linkProgram({vert, frag});
+}
 
-    program_ = glCreateProgram();
-    glAttachShader(program_, vert);
-    glAttachShader(program_, frag);
-    glLinkProgram(program_);
-
-    glDeleteShader(vert);
-    glDeleteShader(frag);
-
-    GLint linked = 0;
-    glGetProgramiv(program_, GL_LINK_STATUS, &linked);
-    if (!linked) {
-        char log[1024];
-        glGetProgramInfoLog(program_, sizeof(log), nullptr, log);
-        glDeleteProgram(program_);
-        throw std::runtime_error(std::string("Program link error:\n") + log);
-    }
+Shader::Shader(const std::string& computePath) {
+    const std::string code = readFile(computePath);
+    program_ = linkProgram({compileShader(GL_COMPUTE_SHADER, code.c_str())});
 }
 
 Shader::~Shader() {
@@ -91,4 +103,11 @@ void Shader::setVec3(const std::string& name, const glm::vec3& value) const {
 void Shader::setMat4(const std::string& name, const glm::mat4& value) const {
     GLint location = glGetUniformLocation(program_, name.c_str());
     glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
+void Shader::dispatch(glm::ivec2 size) const {
+    GLint local[3] = {1, 1, 1}; // layout(local_size_*) of the program
+    glGetProgramiv(program_, GL_COMPUTE_WORK_GROUP_SIZE, local);
+    glDispatchCompute((size.x + local[0] - 1) / local[0],
+                      (size.y + local[1] - 1) / local[1], 1);
 }
