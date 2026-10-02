@@ -38,6 +38,7 @@ add_executable(BlackHoleSim
     src/render/Bloom.cpp
     src/physics/Schwarzschild.cpp
     src/physics/AccretionDisk.cpp
+    src/physics/Kerr.cpp
     src/app/Lensing2D.cpp
     src/app/BlackHole3D.cpp
 )
@@ -80,11 +81,21 @@ add_test(NAME schwarzschild_tests COMMAND schwarzschild_tests)
 add_executable(accretion_disk_tests
     tests/accretion_disk_tests.cpp
     src/physics/AccretionDisk.cpp
+    src/physics/Kerr.cpp
     src/physics/Schwarzschild.cpp
 )
 target_include_directories(accretion_disk_tests PRIVATE src)
 target_link_libraries(accretion_disk_tests PRIVATE glm::glm)
 add_test(NAME accretion_disk_tests COMMAND accretion_disk_tests)
+
+add_executable(kerr_tests
+    tests/kerr_tests.cpp
+    src/physics/Kerr.cpp
+    src/physics/Schwarzschild.cpp
+)
+target_include_directories(kerr_tests PRIVATE src)
+target_link_libraries(kerr_tests PRIVATE glm::glm)
+add_test(NAME kerr_tests COMMAND kerr_tests)
 
 add_executable(starfield_tests
     tests/starfield_tests.cpp
@@ -103,7 +114,7 @@ add_test(NAME png_tests COMMAND png_tests)
 
 # Turn on compiler warnings
 foreach(target BlackHoleSim camera_tests schwarzschild_tests
-        accretion_disk_tests starfield_tests png_tests)
+        accretion_disk_tests kerr_tests starfield_tests png_tests)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
