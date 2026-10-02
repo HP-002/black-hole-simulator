@@ -7,10 +7,10 @@
 // Camera's orthonormal frame with the index lowered: xyz spatial, w time.
 // The photon from view direction n has momentum time + n_i * axis_i.
 struct CameraFrame {
-    glm::dvec4 time;
-    glm::dvec4 right;
-    glm::dvec4 up;
-    glm::dvec4 forward;
+    glm::dvec4 time{0.0};
+    glm::dvec4 right{0.0};
+    glm::dvec4 up{0.0};
+    glm::dvec4 forward{0.0};
     bool valid = false; // false inside the horizon: no observer can hover
 };
 
@@ -19,6 +19,10 @@ struct Photon {
     glm::dvec3 position;
     glm::dvec3 momentum;      // covariant, energy 1 at infinity
     double cameraEnergy = 1.0; // camera's measured energy / energy at infinity
+    // Sign of the energy at infinity. Inside the ergosphere it can be
+    // negative (or 0); momentum = p / E then points back along the ray, so
+    // the trace steps the other way (-1), or can't start (0: captured).
+    double direction = 1.0;
 };
 
 // Photon paths around a rotating black hole, spinning about +y.
@@ -48,6 +52,9 @@ class Kerr {
 
     // Boyer-Lindquist r of a Kerr-Schild position: the spheroid it lies on
     double radius(const glm::dvec3& position) const;
+    // Boyer-Lindquist phi of a position outside the horizon, prograde about
+    // +y, up to a constant
+    double azimuth(const glm::dvec3& position) const;
 
     // Zero-angular-momentum observer at position, axes as close to the given
     // (orthonormal) world axes as the curved space allows

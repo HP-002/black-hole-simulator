@@ -183,6 +183,10 @@ axis L = p · (z, 0, −x), and Carter's constant are all constant:
   steps.
 - Horizon, photon orbits and ISCO match the formulas above at spins 0, 1 and
   0.998.
+- From a camera in the ergosphere (spin 0.9, r = 1.56M), a full circle of
+  view directions includes E < 0 rays. Their first steps turn smoothly with
+  the view across E = 0, and none escape.
+- `Kerr::azimuth` is Boyer–Lindquist φ: g^(rφ) = g^(θφ) = 0.
 
 The GPU tracer is a float copy of the CPU one. Its shadow, sampled on a
 240×135 grid, matches the CPU reference (step 0.01) at all but 0, 3 and 7
@@ -214,6 +218,16 @@ their index lowered. A pixel's photon is then
 
 and 1/(−p_t) before rescaling is the energy the camera measures relative to
 infinity. That number is the camera's own blueshift.
+
+**Negative energy.** Inside the ergosphere, a photon can have E = −p_t ≤ 0
+(`Photon::direction`). Rescaling by a negative E flips the momentum, which
+still has p_t = −1 as the equations assume, but now points back along the ray.
+Hamilton's equations are quadratic in p, so the same ray comes out with the
+affine parameter reversed. The trace therefore steps by sign(E) × the usual
+step. Such a ray can never reach infinity (that needs E > 0), but it can hit
+the inner disk where the disk lies inside the ergosphere. The redshift
+factor stays positive, because the camera and the gas energies both change
+sign. E = 0 exactly is drawn black.
 
 ## 7. The accretion disk
 
@@ -313,8 +327,15 @@ hit it is looked up at the angle the gas had at t = 0:
 
 so every radius carries its own clumps around at its own rate. The noise
 scales the emitted brightness (as a density would) but not the temperature.
-(φ here is the Kerr–Schild angle. It differs from Boyer–Lindquist φ by an
-amount that depends only on r, which just twists the pattern a little.)
+φ is the Boyer–Lindquist angle (`Kerr::azimuth`), which a circular orbit
+turns through at rate Ω. The Cartesian angle of the hit point is off from it
+by an amount that depends on r and the spin:
+
+    φ = atan2(x, z) − atan(a/r) − (a / (r₊ − r₋)) ln((r − r₊)/(r − r₋))
+
+(a of the traced hole). At spin 0.998 that is several radians near the ISCO,
+so using the Cartesian angle would wind the pattern into a fixed spiral that
+changed with the spin.
 
 **Time** is coordinate time in units of rs/c, advancing at 5 rs/c per real
 second. At spin 0:

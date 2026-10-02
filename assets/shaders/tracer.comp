@@ -172,14 +172,26 @@ float fbm(vec3 p) {
     return sum / 0.9375;
 }
 
+// Boyer-Lindquist phi in the equator, prograde about +y; see Kerr::azimuth
+float azimuth(vec3 hit, float r) {
+    float a = tracedA();
+    float phi = atan(hit.x, hit.z) - atan(a, r);
+    float root = sqrt(max(uMass * uMass - a * a, 0.0));
+    if (root == 0.0) {
+        return phi + a / (r - uMass);
+    }
+    return phi - a / (2.0 * root) *
+                     log((r - uMass - root) / (r - uMass + root));
+}
+
 // Gas clumps carried round at the local Keplerian rate
 float diskDensity(vec3 hit, float r) {
-    // Prograde about +y: atan(-z, x) grows; subtract to get start angle
-    // Big chunk part only changes every chunk; wrap it before adding the rest
+    // Subtract the turn so far to get the start angle. Big chunk part only
+    // changes every chunk; wrap it before adding the rest
     float rs = 2.0 * uMass;
     float rate = angularVelocity(r) * rs; // rad per rs / c
     float turned = mod(rate * uTimeChunks, kTwoPi) + rate * uTimeRest;
-    float angle = atan(-hit.z, hit.x) - turned;
+    float angle = azimuth(hit, r) - turned;
     // Circle in noise space: seamless in angle
     vec3 p = vec3(r / rs * kNoiseRadial, kNoiseAround * cos(angle),
                   kNoiseAround * sin(angle));
@@ -188,8 +200,9 @@ float diskDensity(vec3 hit, float r) {
 
 // Linear HDR radiance; tone mapped later
 vec3 diskColor(vec3 hit, float r, float lambda, float cameraEnergy) {
+    // Positive in exact arithmetic, also for E < 0; max guards log, pow
     float temperature =
-        redshiftFactor(r, lambda, cameraEnergy) * diskTemperature(r);
+        max(redshiftFactor(r, lambda, cameraEnergy), 0.0) * diskTemperature(r);
     // Clamped: near the horizon the blueshift overflows half floats
     return min(blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
                    pow(temperature, 4.0) * diskDensity(hit, r),
@@ -197,8 +210,9 @@ vec3 diskColor(vec3 hit, float r, float lambda, float cameraEnergy) {
 }
 
 // pos, mom: Kerr-Schild position and covariant momentum (E = 1) of the
-// time-reversed photon leaving the camera
-vec3 trace(vec3 pos, vec3 mom, float cameraEnergy) {
+// time-reversed photon leaving the camera. direction: sign of its energy;
+// for E < 0, mom points back along the ray (see Photon in Kerr.hpp)
+vec3 trace(vec3 pos, vec3 mom, float cameraEnergy, float direction) {
     // Real photon: L_y / E = -(mom . d(pos)/d(phi))
     float lambda = -dot(mom, vec3(pos.z, 0.0, -pos.x));
     float a = tracedA();
@@ -211,11 +225,11 @@ vec3 trace(vec3 pos, vec3 mom, float cameraEnergy) {
             return vec3(0.0);
         }
         float distance = length(pos);
-        if (distance >= uEscapeRadius && dot(pos, p1) > 0.0) {
+        if (distance >= uEscapeRadius && direction * dot(pos, p1) > 0.0) {
             // Level 0: no derivatives in divergent flow
-            return textureLod(uSkybox, normalize(p1), 0.0).rgb;
+            return textureLod(uSkybox, normalize(direction * p1), 0.0).rgb;
         }
-        float dt = kStepFraction * distance / length(p1);
+        float dt = direction * kStepFraction * distance / length(p1);
         derivative(pos + p1 * dt / 2.0, mom + m1 * dt / 2.0, p2, m2, unused);
         derivative(pos + p2 * dt / 2.0, mom + m2 * dt / 2.0, p3, m3, unused);
         derivative(pos + p3 * dt, mom + m3 * dt, p4, m4, unused);
@@ -254,6 +268,9 @@ void main() {
     vec4 p = uFrameTime + view.x * uFrameRight + view.y * uFrameUp +
              view.z * uFrameForward;
     float energy = -p.w; // rescale to E = 1
-    imageStore(uOutput, pixel,
-               vec4(trace(uCameraPos, p.xyz / energy, 1.0 / energy), 1.0));
+    // E = 0 (in the ergosphere): never escapes, call it captured
+    vec3 color = energy == 0.0 ? vec3(0.0)
+                               : trace(uCameraPos, p.xyz / energy,
+                                       1.0 / energy, sign(energy));
+    imageStore(uOutput, pixel, vec4(color, 1.0));
 }

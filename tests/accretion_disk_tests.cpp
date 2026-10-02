@@ -143,8 +143,11 @@ void spinMovesTheInnerEdge() {
     check(std::abs(AccretionDisk(2.0, 0.998, 24.0).innerRadius() - 1.237) <
               1e-3,
           "a = 0.998: disk reaches in to 1.237 M");
-    check(std::abs(AccretionDisk(2.0, -1.0, 24.0).innerRadius() - 9.0) < 1e-9,
-          "hole turning against the disk: inner edge at 9 M");
+    const AccretionDisk against(2.0, -0.999, 24.0);
+    check(std::abs(against.innerRadius() - 9.0) < 0.01,
+          "hole turning against the disk: inner edge near 9 M");
+    check(std::isfinite(against.flux(12.0)) && against.flux(12.0) > 0.0,
+          "near-extreme counter-spin: flux is finite");
 }
 
 void orbitIsNormalized() {

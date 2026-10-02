@@ -8,38 +8,14 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-} // namespace
-
-AccretionDisk::AccretionDisk(double rs, double spin, double outerRadius)
-    : mass_(0.5 * rs), spin_(spin), inner_(Kerr(rs, spin).iscoRadius(true)),
-      outer_(outerRadius), x0_(std::sqrt(inner_ / mass_)) {
-    // Roots of x^3 - 3x + 2 spin (Page & Thorne 1974)
-    const double third = std::acos(spin) / 3.0;
-    roots_ = glm::dvec3(2.0 * std::cos(third - kPi / 3.0),
-                        2.0 * std::cos(third + kPi / 3.0),
-                        -2.0 * std::cos(third));
-    for (int i = 0; i < 3; ++i) {
-        const double xi = roots_[i];
-        const double xj = roots_[(i + 1) % 3];
-        const double xk = roots_[(i + 2) % 3];
-        // x_i -> 0 as spin -> 0, where the term -> spin / 6 -> 0
-        coefficients_[i] = std::abs(xi) < 1e-9
-                               ? 0.0
-                               : 3.0 * (xi - spin) * (xi - spin) /
-                                     (xi * (xi - xj) * (xi - xk));
-    }
-
-    if (spin != 0.0) {
-        fluxScale_ = AccretionDisk(rs, 0.0, outerRadius).fluxScale();
-        return;
-    }
-    // Peak: log-spaced scan, then golden-section search
-    double best = inner_;
+// Peak of flux, from inner up: log-spaced scan, then golden-section search
+template <typename Flux> double peak(const Flux& flux, double inner) {
+    double best = inner;
     double bestFlux = 0.0;
     const int samples = 400;
     const double span = std::log(40.0);
     for (int i = 1; i <= samples; ++i) {
-        const double r = inner_ * std::exp(span * i / samples);
+        const double r = inner * std::exp(span * i / samples);
         if (flux(r) > bestFlux) {
             bestFlux = flux(r);
             best = r;
@@ -58,7 +34,45 @@ AccretionDisk::AccretionDisk(double rs, double spin, double outerRadius)
             lo = a;
         }
     }
-    fluxScale_ = flux(0.5 * (lo + hi));
+    return flux(0.5 * (lo + hi));
+}
+
+} // namespace
+
+double AccretionDisk::peakFluxWithoutSpin() {
+    // flux depends only on r / M: one number for every hole
+    static const double scale = [] {
+        AccretionDisk disk(2.0, 0.0, 1.0, false);
+        return peak([&disk](double r) { return disk.flux(r); },
+                    disk.innerRadius());
+    }();
+    return scale;
+}
+
+AccretionDisk::AccretionDisk(double rs, double spin, double outerRadius)
+    : AccretionDisk(rs, spin, outerRadius, true) {}
+
+AccretionDisk::AccretionDisk(double rs, double spin, double outerRadius,
+                             bool scaled)
+    : mass_(0.5 * rs), spin_(spin), inner_(Kerr(rs, spin).iscoRadius(true)),
+      outer_(outerRadius), x0_(std::sqrt(inner_ / mass_)) {
+    // Roots of x^3 - 3x + 2 spin (Page & Thorne 1974)
+    const double third = std::acos(spin) / 3.0;
+    roots_ = glm::dvec3(2.0 * std::cos(third - kPi / 3.0),
+                        2.0 * std::cos(third + kPi / 3.0),
+                        -2.0 * std::cos(third));
+    for (int i = 0; i < 3; ++i) {
+        const double xi = roots_[i];
+        const double xj = roots_[(i + 1) % 3];
+        const double xk = roots_[(i + 2) % 3];
+        // x_i -> 0 as spin -> 0, where the term -> spin / 6 -> 0
+        coefficients_[i] = std::abs(xi) < 1e-9
+                               ? 0.0
+                               : 3.0 * (xi - spin) * (xi - spin) /
+                                     (xi * (xi - xj) * (xi - xk));
+    }
+
+    fluxScale_ = scaled ? peakFluxWithoutSpin() : 1.0;
 }
 
 double AccretionDisk::angularVelocity(double r) const {

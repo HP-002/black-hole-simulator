@@ -132,6 +132,20 @@ double Kerr::radius(const glm::dvec3& position) const {
     return fields(position, mass_, traced_).r;
 }
 
+double Kerr::azimuth(const glm::dvec3& position) const {
+    // z + i x = (r + i a) e^(i psi) sin(theta), and the Kerr-Schild angle
+    // psi = phi + integral of a / Delta dr
+    const double a = traced_;
+    const double r = radius(position);
+    const double phi = std::atan2(position.x, position.z) - std::atan2(a, r);
+    const double root = std::sqrt(mass_ * mass_ - a * a); // (r+ - r-) / 2
+    if (root == 0.0) {
+        return phi + a / (r - mass_); // Delta = (r - M)^2
+    }
+    return phi - a / (2.0 * root) *
+                     std::log((r - mass_ - root) / (r - mass_ + root));
+}
+
 CameraFrame Kerr::cameraFrame(const glm::dvec3& position,
                               const glm::dvec3& right, const glm::dvec3& up,
                               const glm::dvec3& forward) const {
@@ -186,7 +200,11 @@ Photon Kerr::photon(const CameraFrame& frame, const glm::dvec3& position,
     const glm::dvec4 p = frame.time + view.x * frame.right +
                          view.y * frame.up + view.z * frame.forward;
     const double energy = -p.w; // E = -p_t; rescale to E = 1
-    return {position, glm::dvec3(p) / energy, 1.0 / energy};
+    if (energy == 0.0) {
+        return {position, glm::dvec3(p), 0.0, 0.0};
+    }
+    return {position, glm::dvec3(p) / energy, 1.0 / energy,
+            energy > 0.0 ? 1.0 : -1.0};
 }
 
 double Kerr::inverseDot(const glm::dvec3& position, const glm::dvec4& a,
@@ -286,23 +304,25 @@ TracedRay3 Kerr::trace(const Photon& photon,
 
     TracedRay3 ray;
     ray.path.push_back(s.pos);
+    // E = 0: only ever bound or falling in
+    const double direction = photon.direction;
     for (int step = 0;; ++step) {
-        if (radius(s.pos) <= horizon) {
+        if (direction == 0.0 || radius(s.pos) <= horizon) {
             ray.fate = RayFate::Captured;
             return ray;
         }
         const State k1 = rate(s);
         const double distance = glm::length(s.pos);
         if (distance >= settings.escapeRadius &&
-            glm::dot(s.pos, k1.pos) > 0.0) {
+            direction * glm::dot(s.pos, k1.pos) > 0.0) {
             ray.fate = RayFate::Escaped;
             return ray;
         }
         if (step == settings.maxSteps) {
             return ray;
         }
-        const double dt =
-            settings.stepFraction * distance / glm::length(k1.pos);
+        const double dt = direction * settings.stepFraction * distance /
+                          glm::length(k1.pos);
         const State k2 = rate(offset(s, k1, dt / 2.0));
         const State k3 = rate(offset(s, k2, dt / 2.0));
         const State k4 = rate(offset(s, k3, dt));

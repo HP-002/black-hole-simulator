@@ -266,6 +266,77 @@ void capturedRaysCrossTheHorizon() {
     }
 }
 
+void negativeEnergyRaysInTheErgosphere() {
+    // Equator, r = 1.56M: between the horizon (1.44M) and the ergosphere
+    // (2M). Looking with the spin, the time-reversed photon can have E < 0
+    const Kerr hole(2.0, 0.9);
+    const glm::dvec3 pos(0.0, 0.0, std::sqrt(1.56 * 1.56 + 0.81));
+    const CameraFrame frame = frameOnZ(hole, pos.z);
+    int negative = 0;
+    double worstTurn = 0.0;
+    bool escapedWithNegativeEnergy = false;
+    glm::dvec3 previous(0.0);
+    for (int i = 0; i <= 360; ++i) {
+        const double angle = 2.0 * 3.14159265358979323846 * i / 360.0;
+        const glm::dvec3 view(std::sin(angle), 0.0, std::cos(angle));
+        const Photon photon = hole.photon(frame, pos, view);
+        if (photon.direction < 0.0) {
+            ++negative;
+        }
+        TraceSettings settings;
+        settings.maxSteps = 4;
+        const TracedRay3 ray = hole.trace(photon, settings);
+        check(ray.path.size() > 1, "ergosphere rays take a step");
+        if (ray.path.size() < 2) {
+            continue;
+        }
+        if (photon.direction < 0.0) {
+            settings.maxSteps = 5000;
+            escapedWithNegativeEnergy |=
+                hole.trace(photon, settings).fate == RayFate::Escaped;
+        }
+        // The ray's first step turns smoothly with the view, also where
+        // E changes sign
+        const glm::dvec3 step = glm::normalize(ray.path[1] - ray.path[0]);
+        if (i > 0) {
+            worstTurn = std::fmax(worstTurn, glm::length(step - previous));
+        }
+        previous = step;
+    }
+    check(negative > 0, "some camera photons have E < 0 in the ergosphere");
+    check(worstTurn < 0.2, "rays don't flip where E changes sign");
+    check(!escapedWithNegativeEnergy, "E < 0 rays never escape");
+}
+
+void azimuthIsBoyerLindquist() {
+    // phi is constant along r and theta: g^(r phi) = g^(theta phi) = 0
+    for (double spin : {0.9, -0.6, 0.998}) {
+        const Kerr hole(2.0, spin);
+        const glm::dvec3 pos(1.3, 0.7, -2.1);
+        const auto theta = [&](const glm::dvec3& p) {
+            return std::acos(p.y / hole.radius(p));
+        };
+        const double h = 1e-6;
+        glm::dvec4 dr(0.0);
+        glm::dvec4 dTheta(0.0);
+        glm::dvec4 dPhi(0.0);
+        for (int i = 0; i < 3; ++i) {
+            glm::dvec3 e(0.0);
+            e[i] = h;
+            dr[i] = (hole.radius(pos + e) - hole.radius(pos - e)) / (2 * h);
+            dTheta[i] = (theta(pos + e) - theta(pos - e)) / (2 * h);
+            dPhi[i] = (hole.azimuth(pos + e) - hole.azimuth(pos - e)) / (2 * h);
+        }
+        check(near(hole.inverseDot(pos, dr, dPhi), 0.0, 1e-8) &&
+                  near(hole.inverseDot(pos, dTheta, dPhi), 0.0, 1e-8),
+              "azimuth is Boyer-Lindquist phi");
+    }
+    const Kerr still(2.0, 0.0);
+    const glm::dvec3 pos(3.0, 1.0, 4.0);
+    check(near(still.azimuth(pos), std::atan2(3.0, 4.0), 1e-12),
+          "no spin: azimuth is the plain angle");
+}
+
 } // namespace
 
 int main() {
@@ -276,6 +347,8 @@ int main() {
     conservedAlongRay();
     equatorialShadowEdges();
     capturedRaysCrossTheHorizon();
+    negativeEnergyRaysInTheErgosphere();
+    azimuthIsBoyerLindquist();
 
     if (failures == 0) {
         std::printf("All Kerr tests passed\n");

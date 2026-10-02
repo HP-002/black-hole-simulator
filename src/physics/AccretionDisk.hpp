@@ -41,6 +41,10 @@ class AccretionDisk {
     double fluxScale() const { return fluxScale_; }
 
   private:
+    // scaled = false: fluxScale 1, for finding the scale itself
+    AccretionDisk(double rs, double spin, double outerRadius, bool scaled);
+    static double peakFluxWithoutSpin();
+
     double mass_;
     double spin_;
     double inner_;
