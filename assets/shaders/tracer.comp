@@ -4,21 +4,31 @@ layout(local_size_x = 8, local_size_y = 8) in;
 layout(rgba16f, binding = 0) uniform writeonly image2D uOutput;
 
 uniform vec3 uCameraPos;
-uniform vec3 uCameraFront;
-uniform vec3 uCameraRight;
-uniform vec3 uCameraUp;
+// Camera's orthonormal frame, index lowered (xyz spatial, w time); see Kerr
+uniform vec4 uFrameTime;
+uniform vec4 uFrameRight;
+uniform vec4 uFrameUp;
+uniform vec4 uFrameForward;
+uniform bool uCameraOutside; // false: inside the horizon, all black
 uniform float uTanHalfFov;
 uniform float uAspect;
-uniform float uRs;
+uniform float uMass;
+uniform float uSpin; // a / M, + turns with the disk about +y
+uniform float uHorizon;
 uniform float uEscapeRadius;
-uniform float uDiskInner;
+uniform float uDiskInner; // innermost stable circular orbit
 uniform float uDiskOuter;
+// Novikov-Thorne flux; see AccretionDisk::flux
+uniform float uFluxX0;
+uniform vec3 uFluxRoots;
+uniform vec3 uFluxCoefficients;
+uniform float uFluxScale; // flux at temperature 1
 uniform samplerCube uSkybox;
 // Coordinate time in rs / c, split so large times keep float precision
 uniform float uTimeChunks; // whole multiple of the chunk length
 uniform float uTimeRest;   // [0, chunk length)
 
-// Mirrors physics/Schwarzschild.cpp and physics/AccretionDisk.cpp
+// Mirrors physics/Kerr.cpp and physics/AccretionDisk.cpp
 const float kStepFraction = 0.05; // step length / r
 const int kMaxSteps = 500;
 const float kDiskPeakKelvin = 4000.0; // artistic; real disks emit X-rays
@@ -29,47 +39,92 @@ const float kNoiseDepth = 1.0;  // density swing
 const float kMaxRadiance = 1e4; // bloom sums 6 levels; stays under half max
 const float kTwoPi = 6.28318530718;
 
-// Hovering observer's view -> coordinate direction
-vec3 coordinateDirection(vec3 pos, vec3 dir) {
-    vec3 radial = normalize(pos);
-    float f = 1.0 - uRs / length(pos);
-    return normalize(dir + (sqrt(f) - 1.0) * dot(dir, radial) * radial);
+// a of the hole the rays are traced in: tracing backwards in time is
+// tracing forwards in the time-reversed hole, which spins the other way
+float tracedA() { return -uSpin * uMass; }
+
+// Kerr-Schild metric g = eta + f l l at p: Boyer-Lindquist r, its
+// spheroid term d = 2 r^2 - |p|^2 + a^2, f and the spatial part of l
+void kerrSchild(vec3 p, out float r, out float d, out float f, out vec3 l) {
+    float a = tracedA();
+    float a2 = a * a;
+    float w = dot(p, p) - a2;
+    d = sqrt(w * w + 4.0 * a2 * p.y * p.y);
+    r = sqrt(0.5 * (w + d));
+    float r2 = r * r;
+    float n = r2 + a2;
+    l = vec3((r * p.x - a * p.z) / n, p.y / r, (r * p.z + a * p.x) / n);
+    f = 2.0 * uMass * r2 * r / (r2 * r2 + a2 * p.y * p.y);
 }
 
-// b = L / E along a unit coordinate direction
-float impactParameter(vec3 pos, vec3 dir) {
-    float rSinPsi = length(cross(pos, dir));
-    if (rSinPsi == 0.0) {
-        return 0.0;
+// Hamilton's equations for H = g^(mu nu) q_mu q_nu / 2 with E = 1;
+// also gives the Boyer-Lindquist r
+void derivative(vec3 p, vec3 q, out vec3 dPos, out vec3 dMom, out float r) {
+    float a = tracedA();
+    float a2 = a * a;
+    float d, f;
+    vec3 l;
+    kerrSchild(p, r, d, f, l);
+    float r2 = r * r;
+    float n = r2 + a2;
+    float s = 1.0 + dot(l, q);
+    dPos = q - f * s * l;
+
+    vec3 yAxis = vec3(0.0, 1.0, 0.0);
+    vec3 gradR = (r2 * p + a2 * p.y * yAxis) / (r * d);
+    float m = r2 * r2 + a2 * p.y * p.y;
+    vec3 gradF = 2.0 * uMass *
+                 (r2 * (3.0 * a2 * p.y * p.y - r2 * r2) * gradR -
+                  2.0 * a2 * p.y * r2 * r * yAxis) /
+                 (m * m);
+    float radialPart = p.x * q.x + p.z * q.z;
+    float numerator = r * radialPart + a * (p.x * q.z - p.z * q.x);
+    vec3 gradNumerator = radialPart * gradR + r * vec3(q.x, 0.0, q.z) +
+                         a * vec3(q.z, 0.0, -q.x);
+    vec3 gradLq = gradNumerator / n - numerator * 2.0 * r * gradR / (n * n) +
+                  q.y * yAxis / r - p.y * q.y * gradR / r2;
+    dMom = 0.5 * s * s * gradF + f * s * gradLq;
+}
+
+// Page-Thorne bracket over x^4 (x^3 - 3x + 2a), x = sqrt(r / M)
+float diskFlux(float r) {
+    float x = sqrt(r / uMass);
+    float bracket = x - uFluxX0 - 1.5 * uSpin * log(x / uFluxX0);
+    for (int i = 0; i < 3; ++i) {
+        bracket -= uFluxCoefficients[i] *
+                   log((x - uFluxRoots[i]) / (uFluxX0 - uFluxRoots[i]));
     }
-    float r = length(pos);
-    return 1.0 / sqrt(1.0 / (rSinPsi * rSinPsi) - uRs / (r * r * r));
+    float x2 = x * x;
+    return bracket / (x2 * x2 * (x2 * x - 3.0 * x + 2.0 * uSpin));
 }
 
-float diskProfile(float r) {
-    float x = uDiskInner / r;
-    return pow(x, 0.75) * pow(1.0 - sqrt(x), 0.25);
-}
-
-// Peak 1 at r = (49 / 36) r_in
+// Peak 1 without spin; hotter with
 float diskTemperature(float r) {
     if (r <= uDiskInner) {
         return 0.0;
     }
-    return diskProfile(r) / diskProfile(49.0 / 36.0 * uDiskInner);
+    return pow(max(diskFlux(r) / uFluxScale, 0.0), 0.25);
 }
 
 // Keplerian d(phi)/dt, coordinate time
 float angularVelocity(float r) {
-    return sqrt(uRs / (2.0 * r * r * r));
+    float sqrtM = sqrt(uMass);
+    return sqrtM / (r * sqrt(r) + uSpin * uMass * sqrtM);
 }
 
-// Observed / emitted energy; lambda = L_y / E of the photon
-float redshiftFactor(float r, float lambda) {
-    float omega = angularVelocity(r);
-    float emitter = sqrt(1.0 - 1.5 * uRs / r);
-    float observer = sqrt(1.0 - uRs / length(uCameraPos));
-    return emitter / (observer * (1.0 - omega * lambda));
+// dt/d(tau) of the gas on its circular orbit
+float orbitTimeRate(float r) {
+    float sqrtR = sqrt(r);
+    float aSqrtM = uSpin * uMass * sqrt(uMass);
+    return (r * sqrtR + aSqrtM) /
+           (pow(r, 0.75) *
+            sqrt(r * sqrtR - 3.0 * uMass * sqrtR + 2.0 * aSqrtM));
+}
+
+// Observed / emitted energy; lambda = L_y / E of the real photon
+float redshiftFactor(float r, float lambda, float cameraEnergy) {
+    return cameraEnergy /
+           (orbitTimeRate(r) * (1.0 - angularVelocity(r) * lambda));
 }
 
 // Approximate blackbody color (Tanner Helland fit)
@@ -121,72 +176,60 @@ float fbm(vec3 p) {
 float diskDensity(vec3 hit, float r) {
     // Prograde about +y: atan(-z, x) grows; subtract to get start angle
     // Big chunk part only changes every chunk; wrap it before adding the rest
-    float rate = angularVelocity(r) * uRs; // rad per rs / c
+    float rs = 2.0 * uMass;
+    float rate = angularVelocity(r) * rs; // rad per rs / c
     float turned = mod(rate * uTimeChunks, kTwoPi) + rate * uTimeRest;
     float angle = atan(-hit.z, hit.x) - turned;
     // Circle in noise space: seamless in angle
-    vec3 p = vec3(r / uRs * kNoiseRadial, kNoiseAround * cos(angle),
+    vec3 p = vec3(r / rs * kNoiseRadial, kNoiseAround * cos(angle),
                   kNoiseAround * sin(angle));
     return max(1.0 + kNoiseDepth * (2.0 * fbm(p) - 1.0), 0.0);
 }
 
 // Linear HDR radiance; tone mapped later
-vec3 diskColor(vec3 hit, float lambda) {
-    float r = length(hit);
-    float temperature = redshiftFactor(r, lambda) * diskTemperature(r);
+vec3 diskColor(vec3 hit, float r, float lambda, float cameraEnergy) {
+    float temperature =
+        redshiftFactor(r, lambda, cameraEnergy) * diskTemperature(r);
     // Clamped: near the horizon the blueshift overflows half floats
     return min(blackbody(temperature * kDiskPeakKelvin) * kDiskBrightness *
                    pow(temperature, 4.0) * diskDensity(hit, r),
                vec3(kMaxRadiance));
 }
 
-// d/dt (pos, vel) for x'' = -strength x / r^5
-void derivative(vec3 pos, vec3 vel, float strength, out vec3 dPos,
-                out vec3 dVel) {
-    float r2 = dot(pos, pos);
-    dPos = vel;
-    dVel = -strength * pos / (r2 * r2 * sqrt(r2));
-}
-
-void rk4Step(inout vec3 pos, inout vec3 vel, float strength, float dt) {
-    vec3 p1, v1, p2, v2, p3, v3, p4, v4;
-    derivative(pos, vel, strength, p1, v1);
-    derivative(pos + p1 * dt / 2.0, vel + v1 * dt / 2.0, strength, p2, v2);
-    derivative(pos + p2 * dt / 2.0, vel + v2 * dt / 2.0, strength, p3, v3);
-    derivative(pos + p3 * dt, vel + v3 * dt, strength, p4, v4);
-    pos += (p1 + 2.0 * p2 + 2.0 * p3 + p4) * dt / 6.0;
-    vel += (v1 + 2.0 * v2 + 2.0 * v3 + v4) * dt / 6.0;
-}
-
-vec3 trace(vec3 pos, vec3 dir) {
-    if (length(pos) <= uRs) {
-        return vec3(0.0);
-    }
-    vec3 vel = coordinateDirection(pos, dir);
-    vec3 h = cross(pos, vel);
-    float strength = 1.5 * uRs * dot(h, h);
-    // Real photon runs backwards along the traced path: L = -h
-    float lambda =
-        dot(h, h) > 0.0 ? -impactParameter(pos, vel) * normalize(h).y : 0.0;
+// pos, mom: Kerr-Schild position and covariant momentum (E = 1) of the
+// time-reversed photon leaving the camera
+vec3 trace(vec3 pos, vec3 mom, float cameraEnergy) {
+    // Real photon: L_y / E = -(mom . d(pos)/d(phi))
+    float lambda = -dot(mom, vec3(pos.z, 0.0, -pos.x));
+    float a = tracedA();
 
     for (int i = 0; i < kMaxSteps; ++i) {
-        float r = length(pos);
-        if (r <= uRs) {
+        vec3 p1, m1, p2, m2, p3, m3, p4, m4;
+        float r, unused;
+        derivative(pos, mom, p1, m1, r);
+        if (r <= uHorizon) {
             return vec3(0.0);
         }
-        if (r >= uEscapeRadius && dot(pos, vel) > 0.0) {
+        float distance = length(pos);
+        if (distance >= uEscapeRadius && dot(pos, p1) > 0.0) {
             // Level 0: no derivatives in divergent flow
-            return textureLod(uSkybox, normalize(vel), 0.0).rgb;
+            return textureLod(uSkybox, normalize(p1), 0.0).rgb;
         }
+        float dt = kStepFraction * distance / length(p1);
+        derivative(pos + p1 * dt / 2.0, mom + m1 * dt / 2.0, p2, m2, unused);
+        derivative(pos + p2 * dt / 2.0, mom + m2 * dt / 2.0, p3, m3, unused);
+        derivative(pos + p3 * dt, mom + m3 * dt, p4, m4, unused);
         vec3 prev = pos;
-        rk4Step(pos, vel, strength, kStepFraction * r / length(vel));
+        pos += (p1 + 2.0 * p2 + 2.0 * p3 + p4) * dt / 6.0;
+        mom += (m1 + 2.0 * m2 + 2.0 * m3 + m4) * dt / 6.0;
 
         // Crossed the disk plane (y = 0) this step
         if (prev.y * pos.y <= 0.0 && prev.y != pos.y) {
             vec3 hit = mix(prev, pos, prev.y / (prev.y - pos.y));
-            float rHit = length(hit);
+            // In the equator r^2 = x^2 + z^2 - a^2
+            float rHit = sqrt(max(dot(hit.xz, hit.xz) - a * a, 0.0));
             if (rHit >= uDiskInner && rHit <= uDiskOuter) {
-                return diskColor(hit, lambda);
+                return diskColor(hit, rHit, lambda, cameraEnergy);
             }
         }
     }
@@ -199,10 +242,18 @@ void main() {
     if (any(greaterThanEqual(pixel, size))) {
         return; // partial edge group
     }
+    if (!uCameraOutside) {
+        imageStore(uOutput, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
     // Pixel center, as a fragment shader would see it
     vec2 ndc = (vec2(pixel) + 0.5) / vec2(size) * 2.0 - 1.0;
-    vec3 dir = normalize(uCameraFront +
-                         ndc.x * uTanHalfFov * uAspect * uCameraRight +
-                         ndc.y * uTanHalfFov * uCameraUp);
-    imageStore(uOutput, pixel, vec4(trace(uCameraPos, dir), 1.0));
+    vec3 view = normalize(
+        vec3(ndc.x * uTanHalfFov * uAspect, ndc.y * uTanHalfFov, 1.0));
+    // Moves along view at the speed of light: p = u + n
+    vec4 p = uFrameTime + view.x * uFrameRight + view.y * uFrameUp +
+             view.z * uFrameForward;
+    float energy = -p.w; // rescale to E = 1
+    imageStore(uOutput, pixel,
+               vec4(trace(uCameraPos, p.xyz / energy, 1.0 / energy), 1.0));
 }

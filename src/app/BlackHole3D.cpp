@@ -1,5 +1,7 @@
 #include "app/BlackHole3D.hpp"
 
+#include "physics/AccretionDisk.hpp"
+#include "physics/Kerr.hpp"
 #include "render/StarField.hpp"
 
 #include <cmath>
@@ -15,8 +17,10 @@ constexpr float kMinRs = 0.25f;
 constexpr float kMaxRs = 3.0f;
 constexpr float kMassRate = 0.5f;         // log(rs) per second
 constexpr float kMinEscapeRadius = 50.0f; // in rs; bending left < 1e-4 rad
-constexpr float kDiskInner = 3.0f;        // in rs; innermost stable orbit
-constexpr float kDiskOuter = 12.0f;       // in rs
+constexpr float kDiskOuter = 12.0f;       // in rs; inner edge is the ISCO
+constexpr float kStartSpin = 0.6f;        // a / M
+constexpr float kMaxSpin = 0.998f;        // Thorne's limit for real holes
+constexpr float kSpinRate = 0.4f;         // a / M per second
 constexpr float kLowRenderScale = 0.5f;
 constexpr float kMinExposure = 1.0f / 16.0f;
 constexpr float kMaxExposure = 16.0f;
@@ -36,7 +40,8 @@ BlackHole3D::BlackHole3D()
       skybox_(generateStarField(kSkyboxSize, kStarCount, kStarSeed)),
       // Pitched to look at the origin
       camera_(kStartPosition, -90.0f,
-              -glm::degrees(std::atan2(kStartPosition.y, kStartPosition.z))) {
+              -glm::degrees(std::atan2(kStartPosition.y, kStartPosition.z))),
+      spin_(kStartSpin) {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
@@ -82,6 +87,16 @@ void BlackHole3D::update(const Window& window, float deltaTime) {
         rs_ = std::fmax(rs_ * std::exp(-kMassRate * deltaTime), kMinRs);
     }
 
+    if (window.isKeyPressed(GLFW_KEY_RIGHT_BRACKET)) {
+        spin_ = std::fmin(spin_ + kSpinRate * deltaTime, kMaxSpin);
+    }
+    if (window.isKeyPressed(GLFW_KEY_LEFT_BRACKET)) {
+        spin_ = std::fmax(spin_ - kSpinRate * deltaTime, -kMaxSpin);
+    }
+    if (window.wasKeyPressed(GLFW_KEY_0)) {
+        spin_ = 0.0f;
+    }
+
     if (window.isKeyPressed(GLFW_KEY_E)) {
         exposure_ = std::fmin(exposure_ * std::exp(kExposureRate * deltaTime),
                               kMaxExposure);
@@ -100,21 +115,37 @@ void BlackHole3D::render(glm::ivec2 framebufferSize) {
         glm::ivec2(glm::vec2(framebufferSize) * renderScale_ + 0.5f), 1));
     const glm::ivec2 size = image_.size();
 
+    // Physics in double, once per frame; the shader gets floats
+    const Kerr hole(rs_, spin_);
+    const AccretionDisk disk(rs_, spin_, kDiskOuter * rs_);
+    const glm::dvec3 position(camera_.position());
+    const CameraFrame frame =
+        hole.cameraFrame(position, glm::dvec3(camera_.right()),
+                         glm::dvec3(camera_.up()), glm::dvec3(camera_.front()));
+
     tracer_.use();
     tracer_.setVec3("uCameraPos", camera_.position());
-    tracer_.setVec3("uCameraFront", camera_.front());
-    tracer_.setVec3("uCameraRight", camera_.right());
-    tracer_.setVec3("uCameraUp", camera_.up());
+    tracer_.setVec4("uFrameTime", glm::vec4(frame.time));
+    tracer_.setVec4("uFrameRight", glm::vec4(frame.right));
+    tracer_.setVec4("uFrameUp", glm::vec4(frame.up));
+    tracer_.setVec4("uFrameForward", glm::vec4(frame.forward));
+    tracer_.setInt("uCameraOutside", frame.valid);
     tracer_.setFloat("uTanHalfFov", std::tan(glm::radians(kFovDegrees) / 2.0f));
     // Screen aspect: the rounded image is stretched over the whole screen
     tracer_.setFloat("uAspect",
                      static_cast<float>(framebufferSize.x) / framebufferSize.y);
-    tracer_.setFloat("uRs", rs_);
+    tracer_.setFloat("uMass", static_cast<float>(hole.mass()));
+    tracer_.setFloat("uSpin", spin_);
+    tracer_.setFloat("uHorizon", static_cast<float>(hole.horizonRadius()));
     tracer_.setFloat("uEscapeRadius",
                      std::fmax(kMinEscapeRadius * rs_,
                                2.0f * glm::length(camera_.position())));
-    tracer_.setFloat("uDiskInner", kDiskInner * rs_);
-    tracer_.setFloat("uDiskOuter", kDiskOuter * rs_);
+    tracer_.setFloat("uDiskInner", static_cast<float>(disk.innerRadius()));
+    tracer_.setFloat("uDiskOuter", static_cast<float>(disk.outerRadius()));
+    tracer_.setFloat("uFluxX0", static_cast<float>(disk.fluxX0()));
+    tracer_.setVec3("uFluxRoots", glm::vec3(disk.fluxRoots()));
+    tracer_.setVec3("uFluxCoefficients", glm::vec3(disk.fluxCoefficients()));
+    tracer_.setFloat("uFluxScale", static_cast<float>(disk.fluxScale()));
     tracer_.setInt("uSkybox", 0);
     const double chunks = std::floor(time_ / kTimeChunk) * kTimeChunk;
     tracer_.setFloat("uTimeChunks", static_cast<float>(chunks));
