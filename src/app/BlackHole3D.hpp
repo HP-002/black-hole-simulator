@@ -8,8 +8,8 @@
 #include "render/FullscreenTriangle.hpp"
 #include "render/Texture2D.hpp"
 
-// Fly-through view: one bent light ray per pixel, traced by a compute
-// shader into an image, with a thin accretion disk
+// Fly-through view: one bent light ray per pixel around a spinning black
+// hole, traced by a compute shader into an image, with a thin accretion disk
 class BlackHole3D {
   public:
     BlackHole3D();
@@ -20,6 +20,7 @@ class BlackHole3D {
     float renderScale() const { return renderScale_; }
     float exposure() const { return exposure_; }
     bool paused() const { return paused_; }
+    float spin() const { return spin_; }
 
   private:
     Shader tracer_;
@@ -30,6 +31,7 @@ class BlackHole3D {
     Cubemap skybox_;
     Camera camera_;
     float rs_ = 1.0f;
+    float spin_; // a / M; + turns with the disk
     float renderScale_ = 1.0f; // traced pixels per screen pixel, per axis
     float exposure_ = 1.0f;    // HDR multiplier before tone mapping
     double time_ = 0.0;        // coordinate time in rs / c; double for long runs

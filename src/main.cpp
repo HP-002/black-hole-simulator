@@ -129,8 +129,9 @@ int main(int argc, char** argv) {
                 used = std::clamp(used, 0, kTitleSize - 1);
                 if (show3D) {
                     std::snprintf(title + used, sizeof(title) - used,
-                                  " | %gx scale | exposure %.2f%s",
-                                  view3D.renderScale(), view3D.exposure(),
+                                  " | spin %.3f | %gx scale | exposure %.2f%s",
+                                  view3D.spin(), view3D.renderScale(),
+                                  view3D.exposure(),
                                   view3D.paused() ? " | paused" : "");
                 }
                 window.setTitle(title);

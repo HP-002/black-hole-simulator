@@ -53,6 +53,8 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | W / A / S / D | Fly forward / left / back / right |
 | Space / Left Shift | Fly up / down |
 | Mouse | Look around |
+| ] / [ | Spin the hole faster / slower (negative: against the disk) |
+| 0 | Stop the spin |
 | E / Q | Raise / lower exposure |
 | R | Render scale 1x / 0.5x (faster) |
 | P | Pause / resume the disk |
@@ -63,6 +65,17 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | W / S | Move the light beam up / down |
 
 ## Status
+Phase 5: spinning (Kerr) black hole. Rays follow Hamilton's equations in
+Kerr–Schild coordinates on the GPU, and are checked against a double-precision
+CPU reference. The camera is a zero-angular-momentum observer, which can
+work even inside the ergosphere. With spin the shadow turns into a "D",
+shifted to one side. The disk's inner edge follows the innermost stable orbit
+(3 rs at spin 0, 0.62 rs at spin 0.998). Its temperature follows the
+relativistic Novikov–Thorne profile, so spin makes the inner disk much hotter
+and brighter: lower the exposure (Q) at high spin. Redshift includes frame
+dragging. The window title shows the spin. The 2D view still shows the
+non-spinning hole.
+
 Phase 4: rendering pipeline. A compute shader traces the rays into an HDR
 (RGBA16F) image. Bloom (bright-pass plus a chain of half-size blurs) adds glow,
 then an ACES filmic curve maps it to the screen. The window title shows FPS,
