@@ -3,8 +3,10 @@
 #include "physics/AccretionDisk.hpp"
 #include "physics/Schwarzschild.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 
 namespace {
 
@@ -220,6 +222,154 @@ void keplerianRotation() {
           "Kerr: Omega = sqrt(M) / (r^(3/2) + a sqrt(M))");
 }
 
+constexpr double kPi = 3.14159265358979323846;
+
+// Simpson's rule, n even
+template <typename Fn> double integrate(const Fn& fn, double a, double b) {
+    const int n = 20000;
+    const double dx = (b - a) / n;
+    double sum = fn(a) + fn(b);
+    for (int i = 1; i < n; ++i) {
+        sum += (i % 2 ? 4.0 : 2.0) * fn(a + i * dx);
+    }
+    return sum * dx / 3.0;
+}
+
+void verticalOpticalDepth() {
+    for (double thickness : {0.01, 0.05, 0.3}) {
+        const AccretionDisk disk(1.0, 0.0, 12.0, thickness, 2.5);
+        const double r = 6.0;
+        const double h = disk.scaleHeight(r);
+        check(std::abs(h - thickness * r) < 1e-15, "h = (H / R) r");
+        const auto alpha = [&](double y) { return disk.absorption(r, y); };
+
+        // Gaussian of fixed column: rho0 sqrt(2 pi) h = column
+        check(std::abs(alpha(0.0) * std::sqrt(2.0 * kPi) * h - 2.5) < 1e-12,
+              "midplane absorption times sqrt(2 pi) h is the optical depth");
+        check(std::abs(integrate(alpha, -12.0 * h, 12.0 * h) - 2.5) < 1e-9,
+              "vertical optical depth is the same for every thickness");
+        const double slab = 2.5 * std::erf(3.0 / std::sqrt(2.0));
+        check(std::abs(disk.slabOpticalDepth() - slab) < 1e-12 &&
+                  std::abs(integrate(alpha, -3.0 * h, 3.0 * h) - slab) < 1e-9,
+              "slab |y| < 3h holds erf(3 / sqrt 2) = 99.7% of it");
+    }
+}
+
+void rayTransfer() {
+    RayTransfer clear;
+    clear.add(5.0, 0.0);
+    check(clear.radiance == 0.0 && clear.transmittance == 1.0,
+          "transparent gas neither shines nor dims");
+
+    // Two layers: the front one dims the back one
+    RayTransfer two;
+    two.add(1.0, 0.5);
+    two.add(3.0, 0.5);
+    const double t = std::exp(-0.5);
+    check(std::abs(two.radiance - ((1.0 - t) + t * (1.0 - t) * 3.0)) < 1e-12 &&
+              std::abs(two.transmittance - t * t) < 1e-12,
+          "front to back: back layer seen through the front one");
+
+    RayTransfer wall;
+    wall.add(0.0, 1.0);
+    wall.add(2.0, 4.0); // e^-5 < 1%: rest taken as opaque
+    check(wall.opaque() && std::abs(wall.radiance - 2.0 * std::exp(-1.0)) <
+                               1e-12,
+          "almost opaque: the light still coming through has its source");
+}
+
+// March a straight line the way tracer.comp marches a ray: steps of 5% of
+// the distance to the hole, shortened near the disk; one sample at the
+// middle of each step. Flat space, no spin: r = |p|
+template <typename Source>
+RayTransfer marchLine(const AccretionDisk& disk, glm::dvec3 start,
+                      glm::dvec3 direction, double length,
+                      const Source& source) {
+    direction = glm::normalize(direction);
+    RayTransfer transfer;
+    double s = 0.0;
+    int steps = 0;
+    while (s < length && !transfer.opaque() && ++steps < 100000) {
+        const glm::dvec3 p = start + s * direction;
+        double ds = 0.05 * glm::length(p);
+        if (direction.y != 0.0) {
+            ds = std::min(ds, disk.maxHeightChange(glm::length(p), p.y,
+                                                   direction.y) /
+                                  std::abs(direction.y));
+        }
+        const glm::dvec3 middle = p + 0.5 * ds * direction;
+        const double r = glm::length(middle);
+        if (disk.inSlab(r, middle.y)) {
+            transfer.add(source(r), disk.absorption(r, middle.y) * ds);
+        }
+        s += ds;
+    }
+    return transfer;
+}
+
+// Straight through the disk at radius r, tilted from the vertical
+RayTransfer crossDisk(const AccretionDisk& disk, double r, double tilt,
+                      double source) {
+    const glm::dvec3 direction(std::sin(tilt), -std::cos(tilt), 0.0);
+    const double before = 3.0; // start above the slab
+    const glm::dvec3 start = glm::dvec3(r, 0.0, 0.0) - before * direction;
+    return marchLine(disk, start, direction, 2.0 * before,
+                     [source](double) { return source; });
+}
+
+void semiTransparentSlab() {
+    // Thin enough that h barely changes with height (h uses spherical r)
+    const AccretionDisk disk(1.0, 0.0, 12.0, 0.01, 0.7);
+    const double expected = std::exp(-disk.slabOpticalDepth());
+    const RayTransfer straight = crossDisk(disk, 6.0, 0.0, 2.0);
+    check(std::abs(straight.transmittance / expected - 1.0) < 1e-3,
+          "straight down: transmittance e^-(vertical optical depth)");
+    check(std::abs(straight.radiance - 2.0 * (1.0 - straight.transmittance)) <
+              1e-12,
+          "uniform source S: radiance S (1 - transmittance)");
+
+    // Tilted, a thin slab is crossed on a path 1 / cos(tilt) longer
+    const AccretionDisk thin(1.0, 0.0, 12.0, 1e-6, 0.7);
+    const RayTransfer tilted = crossDisk(thin, 6.0, 1.0, 1.0);
+    check(std::abs(std::log(tilted.transmittance) /
+                       (-thin.slabOpticalDepth() / std::cos(1.0)) -
+                   1.0) < 1e-3,
+          "tilted: optical depth over cos(tilt)");
+}
+
+void thinOpaqueLimit() {
+    // The Phase 5 disk: the plane's own color where the ray crosses it.
+    // Off the vertical the opaque surface, ~2.5 h up, is shifted sideways
+    // by ~2.5 h tan(tilt) from the crossing: converges as h -> 0
+    const AccretionDisk disk(1.0, 0.3, 12.0, 1e-6, 1e4);
+    const auto glow = [&disk](double r) {
+        return std::pow(disk.temperature(r), 4.0);
+    };
+    for (double r : {disk.innerRadius() * 1.2, 4.0, 6.0, 11.0}) {
+        for (double tilt : {0.0, 0.8, 1.5, 3.0}) { // 3.0: from below
+            const glm::dvec3 direction(std::sin(tilt), -std::cos(tilt), 0.0);
+            const glm::dvec3 start = glm::dvec3(r, 0.0, 0.0) - direction;
+            const RayTransfer seen = marchLine(disk, start, direction, 2.0, glow);
+            check(seen.opaque() &&
+                      std::abs(seen.radiance / glow(r) - 1.0) < 1e-3,
+                  "thin, opaque limit: the color of the plane at the crossing");
+        }
+    }
+}
+
+void marchStepsNearTheDisk() {
+    const AccretionDisk disk(1.0, 0.0, 12.0, 0.05, 1.0);
+    const double h = disk.scaleHeight(6.0);
+    check(std::abs(disk.maxHeightChange(6.0, 0.0, 1.0) - 0.5 * h) < 1e-12,
+          "inside the slab: steps of half a scale height");
+    check(std::abs(disk.maxHeightChange(6.0, 5.0 * h, -1.0) - 2.01 * h) <
+              1e-12,
+          "heading in: land just inside");
+    check(std::isinf(disk.maxHeightChange(6.0, 5.0 * h, 1.0)) &&
+              std::isinf(disk.maxHeightChange(20.0, 0.0, 1.0)),
+          "heading away, or past the edge: no limit");
+}
+
 } // namespace
 
 int main() {
@@ -233,6 +383,11 @@ int main() {
     redshiftLimits();
     weakFieldDoppler();
     keplerianRotation();
+    verticalOpticalDepth();
+    rayTransfer();
+    semiTransparentSlab();
+    thinOpaqueLimit();
+    marchStepsNearTheDisk();
 
     if (failures == 0) {
         std::printf("All accretion disk tests passed\n");
