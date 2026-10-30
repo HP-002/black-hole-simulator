@@ -47,6 +47,15 @@ void constants() {
               near(extreme.iscoRadius(false), 9.0, 1e-9),
           "a = M: ISCO at M and 9M");
 
+    check(near(still.criticalImpactParameter(true), 3.0 * std::sqrt(3.0),
+               1e-12) &&
+              near(still.criticalImpactParameter(false), 3.0 * std::sqrt(3.0),
+                   1e-12),
+          "no spin: critical impact parameter 3 sqrt(3) M");
+    check(near(extreme.criticalImpactParameter(true), 2.0, 1e-9) &&
+              near(extreme.criticalImpactParameter(false), 7.0, 1e-9),
+          "a = M: critical impact parameters 2M and 7M");
+
     check(near(Kerr(2.0, 0.998).iscoRadius(true), 1.2370, 1e-4),
           "a = 0.998 M: prograde ISCO at 1.237M (Thorne limit)");
     check(near(Kerr(2.0, -0.5).iscoRadius(true),
@@ -249,6 +258,48 @@ void equatorialShadowEdges() {
           "retrograde shadow edge at b = 6.83M (a = 0.9)");
 }
 
+void incomingRays() {
+    // The 2D view: rays from far away, traced forwards in time, so in the
+    // hole of the opposite spin. Here the hole spins +0.9 about +y.
+    const double spin = 0.9;
+    const Kerr hole(2.0, -spin); // M = 1
+    const Kerr real(2.0, spin);
+    const glm::dvec3 start(-1e4, 0.0, 0.0);
+    for (double l : {-6.0, 0.0, 3.5}) {
+        const Photon photon =
+            hole.incomingPhoton(start + glm::dvec3(0.0, 0.0, 2.0), l);
+        check(near(hole.hamiltonian(photon.position, photon.momentum), 0.0,
+                   1e-12),
+              "incoming photon is null: H = 0");
+        check(near(hole.angularMomentum(photon.position, photon.momentum), l,
+                   1e-9),
+              "incoming photon has the given L");
+        glm::dvec3 dPos;
+        glm::dvec3 dMom;
+        hole.derivative(photon.position, photon.momentum, dPos, dMom);
+        check(glm::dot(dPos, photon.position) < 0.0,
+              "incoming photon moves inward");
+    }
+
+    // Moving +x from far off at height z: L = z. L > 0 goes round with
+    // the spin.
+    TraceSettings settings;
+    settings.escapeRadius = 2e4;
+    const auto fate = [&](double l) {
+        return hole.trace(hole.incomingPhoton(start + glm::dvec3(0, 0, l), l),
+                          settings)
+            .fate;
+    };
+    const double bPro = real.criticalImpactParameter(true);
+    const double bRetro = real.criticalImpactParameter(false);
+    check(fate(0.99 * bPro) == RayFate::Captured &&
+              fate(1.01 * bPro) == RayFate::Escaped,
+          "incoming prograde rays: captured below b = 2.84M");
+    check(fate(-0.99 * bRetro) == RayFate::Captured &&
+              fate(-1.01 * bRetro) == RayFate::Escaped,
+          "incoming retrograde rays: captured below b = 6.83M");
+}
+
 void capturedRaysCrossTheHorizon() {
     // Near-extreme spin: the trace must not wind round outside the horizon
     const Kerr hole(2.0, 0.998);
@@ -346,6 +397,7 @@ int main() {
     noSpinMatchesSchwarzschild();
     conservedAlongRay();
     equatorialShadowEdges();
+    incomingRays();
     capturedRaysCrossTheHorizon();
     negativeEnergyRaysInTheErgosphere();
     azimuthIsBoyerLindquist();

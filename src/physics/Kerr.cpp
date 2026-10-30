@@ -128,6 +128,11 @@ double Kerr::iscoRadius(bool prograde) const {
     return mass_ * (3.0 + z2 - (s >= 0.0 ? root : -root));
 }
 
+double Kerr::criticalImpactParameter(bool prograde) const {
+    const double s = prograde ? spin_ : -spin_;
+    return mass_ * (-s + 6.0 * std::cos(std::acos(-s) / 3.0));
+}
+
 double Kerr::radius(const glm::dvec3& position) const {
     return fields(position, mass_, traced_).r;
 }
@@ -205,6 +210,39 @@ Photon Kerr::photon(const CameraFrame& frame, const glm::dvec3& position,
     }
     return {position, glm::dvec3(p) / energy, 1.0 / energy,
             energy > 0.0 ? 1.0 : -1.0};
+}
+
+Photon Kerr::incomingPhoton(const glm::dvec3& position,
+                            double angularMomentum) const {
+    // p = L A / |A|^2 + mu n, with A = d(position) / d(phi) and n the unit
+    // radial direction (A . n = 0, p_y = 0). H = 0 is quadratic in mu.
+    const Fields k = fields(position, mass_, traced_);
+    const glm::dvec3 tangent = axial(position);
+    const glm::dvec3 base =
+        angularMomentum * tangent / glm::dot(tangent, tangent);
+    const glm::dvec3 n = glm::normalize(position);
+    const double s0 = 1.0 + glm::dot(k.l, base); // l . p = s0 - 1 + mu c
+    const double c = glm::dot(k.l, n);
+    const double qa = 1.0 - k.f * c * c;
+    const double qb = -2.0 * k.f * s0 * c;
+    const double qc = glm::dot(base, base) - 1.0 - k.f * s0 * s0;
+    const double root = std::sqrt(std::fmax(qb * qb - 4.0 * qa * qc, 0.0));
+
+    // Of the two roots, keep the one moving inward
+    Photon best{position, glm::dvec3(0.0), 1.0, 1.0};
+    double bestRadial = 0.0;
+    for (double sign : {-1.0, 1.0}) {
+        const glm::dvec3 p = base + (-qb + sign * root) / (2.0 * qa) * n;
+        glm::dvec3 dPosition;
+        glm::dvec3 dMomentum;
+        derivative(position, p, dPosition, dMomentum);
+        const double radial = glm::dot(dPosition, n);
+        if (sign < 0.0 || radial < bestRadial) {
+            best.momentum = p;
+            bestRadial = radial;
+        }
+    }
+    return best;
 }
 
 double Kerr::inverseDot(const glm::dvec3& position, const glm::dvec4& a,

@@ -118,6 +118,14 @@ impact parameters are
 
     b = ∓a + 6M cos(⅓ arccos(∓ spin))     (2M and 7M at spin 1)
 
+**The 2D view** shows exactly this in the equator, seen from above. Each
+beam ray starts far away with energy E = 1 and angular momentum L = ∓b
+(`Kerr::incomingPhoton`). The covariant momentum is L along φ plus a radial
+part, which H = 0 fixes up to the choice of moving in or out. Rays with
+|b| below the critical value on their side are captured. The rings are drawn
+at Cartesian distance √(r² + a²), where Boyer–Lindquist radius r meets the
+equator in Kerr–Schild coordinates.
+
 ## 5. Kerr light rays
 
 **Coordinates.** The usual Boyer–Lindquist coordinates (t, r, θ, φ) are

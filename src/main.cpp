@@ -133,6 +133,9 @@ int main(int argc, char** argv) {
                                   view3D.spin(), view3D.renderScale(),
                                   view3D.exposure(),
                                   view3D.paused() ? " | paused" : "");
+                } else {
+                    std::snprintf(title + used, sizeof(title) - used,
+                                  " | spin %.3f", view2D.spin());
                 }
                 window.setTitle(title);
                 fpsStart = now;

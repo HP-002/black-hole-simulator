@@ -49,6 +49,9 @@ class Kerr {
     double photonOrbitRadius(bool prograde) const;
     // Innermost stable circular orbit (Bardeen, Press & Teukolsky 1972)
     double iscoRadius(bool prograde) const;
+    // Impact parameter |L| / E that separates captured from escaping light
+    // in the equator, with or against the spin
+    double criticalImpactParameter(bool prograde) const;
 
     // Boyer-Lindquist r of a Kerr-Schild position: the spheroid it lies on
     double radius(const glm::dvec3& position) const;
@@ -64,6 +67,11 @@ class Kerr {
     // view: unit direction in the camera's (right, up, forward) frame
     Photon photon(const CameraFrame& frame, const glm::dvec3& position,
                   const glm::dvec3& view) const;
+    // Ray in the equator (position.y = 0) coming in from far away with
+    // energy 1 and angular momentum L about +y (impact parameter |L|).
+    // position must lie outside the ray's closest approach.
+    Photon incomingPhoton(const glm::dvec3& position,
+                          double angularMomentum) const;
 
     // g^(mu nu) a_mu b_nu of two covectors (xyz spatial, w time)
     double inverseDot(const glm::dvec3& position, const glm::dvec4& a,

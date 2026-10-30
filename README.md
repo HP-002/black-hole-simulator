@@ -63,6 +63,8 @@ ctest --test-dir build/mingw-debug --output-on-failure
 | Key | Action |
 |---|---|
 | W / S | Move the light beam up / down |
+| ] / [ | Spin the hole faster / slower (negative: clockwise) |
+| 0 | Stop the spin |
 
 ## Status
 Phase 5: spinning (Kerr) black hole. Rays follow Hamilton's equations in
@@ -73,8 +75,15 @@ shifted to one side. The disk's inner edge follows the innermost stable orbit
 (3 rs at spin 0, 0.62 rs at spin 0.998). Its temperature follows the
 relativistic Novikov–Thorne profile, so spin makes the inner disk much hotter
 and brighter: lower the exposure (Q) at high spin. Redshift includes frame
-dragging. The window title shows the spin. The 2D view still shows the
-non-spinning hole.
+dragging. The window title shows the spin.
+
+The 2D view looks down on the equator of the spinning hole, which turns
+counterclockwise for positive spin. The beam comes in from far away with
+exact impact parameters and is traced with the same Kerr equations. Light
+passing with the spin (below the hole) gets closer before it is captured,
+so the band of red rays shifts away from that side. Rings: horizon (orange),
+ergosphere (purple) and the photon orbits with (cyan) and against (blue)
+the spin.
 
 Phase 4: rendering pipeline. A compute shader traces the rays into an HDR
 (RGBA16F) image. Bloom (bright-pass plus a chain of half-size blurs) adds glow,
